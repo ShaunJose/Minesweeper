@@ -24,3 +24,6 @@ cabal.project.local~
 # OSX stuff
 */.DS_Store
 .DS_Store
+
+# Main executable file
+src/Main
