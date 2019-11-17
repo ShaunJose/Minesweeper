@@ -45,6 +45,15 @@ makeRandIntTuple g bounds =
                 in let secondRes = makeRandomInt (snd firstRes) bounds
                   in ((fst firstRes, fst secondRes ), snd secondRes)
 
+-- random Int tuple list generator
+randIntTupleList :: StdGen -> (Int, Int) -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
+randIntTupleList g (_, _) currLst 0 = (currLst, g)
+randIntTupleList g bounds currLst count =
+  let randRes = makeRandIntTuple g bounds -- get (randIntTuple, new StdGen)
+    in let tuple = fst randRes -- get randIntTuple
+      in let gen = snd randRes -- get the new StdGen
+        in randIntTupleList gen bounds (tuple : currLst) (count - 1)
+
 -- initialise game --
 initGame :: Int -> IO ()
 initGame 0 = getChar >>= putChar
@@ -56,5 +65,6 @@ main = do
         print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden --Eq test
         print $ Cell (0,1) (Num 1) Hidden == Cell (1,1) (Num 1) Hidden --Eq test
         g <- getStdGen
-        print $ fst $ makeRandomInt g (1,7) -- makeRandomInt test
-        print $ fst $ makeRandIntTuple g (1,7) -- makeRandIntTuple test
+        print $ fst $ makeRandomInt g (1, 7) -- makeRandomInt test
+        print $ fst $ makeRandIntTuple g (1, 7) -- makeRandIntTuple test
+        print $ randIntTupleList g (1, 7) [] 10 -- randIntTupleList test
