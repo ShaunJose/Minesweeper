@@ -35,6 +35,10 @@ createRow row n currCol = Cell (row, currCol) (Num 0) Hidden : createRow row n (
 --   [Cell (2, 0), Cell (2, 1), Cell (2, 2) Cell (2, 3)] ]
 
 --TODO make random Int generator (within bounds)
+makeRandomInt :: StdGen -> (Int, Int) -> (Int, StdGen)
+makeRandomInt g bounds = randomR bounds g
+
+
 --TODO make random tuple generator
 
 -- initialise game --
@@ -44,7 +48,8 @@ initGame 1 = getChar >>= putChar
 initGame n   = getChar >>= putChar
 
 main = do
-        print $ createRow 1 4 0
+        print $ createRow 1 4 0 --create Row Test
+        print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden --Eq test
+        print $ Cell (0,1) (Num 1) Hidden == Cell (1,1) (Num 1) Hidden --Eq test
         g <- getStdGen
-        print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden
-        print $ Cell (0,1) (Num 1) Hidden == Cell (1,1) (Num 1) Hidden
+        print $ fst $ makeRandomInt g (1,7) -- makeRandomInt test
