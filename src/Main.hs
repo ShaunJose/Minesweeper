@@ -45,7 +45,7 @@ makeRandIntTuple g bounds =
                 in let secondRes = makeRandomInt (snd firstRes) bounds
                   in ((fst firstRes, fst secondRes ), snd secondRes)
 
--- random Mine generator
+-- random Mine Cell generator
 makeRandomMine :: StdGen -> (Int, Int) -> (Cell, StdGen)
 makeRandomMine g bounds =
     let randRes = (makeRandIntTuple g bounds) -- get (randIntTuple, StdGen)
@@ -53,14 +53,14 @@ makeRandomMine g bounds =
         in let gen = snd randRes -- get new generator
           in (Cell tuple Mine Hidden, gen)
 
--- random Int tuple list generator
-randIntTupleList :: StdGen -> (Int, Int) -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
-randIntTupleList g (_, _) currLst 0 = (currLst, g)
-randIntTupleList g bounds currLst count =
-  let randRes = makeRandIntTuple g bounds -- get (randIntTuple, new StdGen)
+-- random mine list generator
+randomMineList :: StdGen -> (Int, Int) -> [Cell] -> Int -> ( [Cell], StdGen)
+randomMineList g (_, _) currLst 0 = (currLst, g)
+randomMineList g bounds currLst count =
+  let randRes = makeRandomMine g bounds -- get (randIntTuple, new StdGen)
     in let tuple = fst randRes -- get randIntTuple
       in let gen = snd randRes -- get the new StdGen
-        in randIntTupleList gen bounds (tuple : currLst) (count - 1)
+        in randomMineList gen bounds (tuple : currLst) (count - 1)
 
 -- initialise game --
 initGame :: Int -> IO ()
@@ -75,5 +75,5 @@ main = do
         g <- getStdGen
         print $ fst $ makeRandomInt g (1, 7) -- makeRandomInt test
         print $ fst $ makeRandIntTuple g (1, 7) -- makeRandIntTuple test
-        print $ randIntTupleList g (1, 7) [] 10 -- randIntTupleList test
         print $ makeRandomMine g (1,7) -- makeRandomMine test
+        print $ randomMineList g (1, 7) [] 10 -- randomMineList test
