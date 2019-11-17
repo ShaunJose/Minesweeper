@@ -45,6 +45,14 @@ makeRandIntTuple g bounds =
                 in let secondRes = makeRandomInt (snd firstRes) bounds
                   in ((fst firstRes, fst secondRes ), snd secondRes)
 
+-- random Mine generator
+makeRandomMine :: StdGen -> (Int, Int) -> (Cell, StdGen)
+makeRandomMine g bounds =
+    let randRes = (makeRandIntTuple g bounds) -- get (randIntTuple, StdGen)
+      in let tuple = fst randRes -- get randIntTuple
+        in let gen = snd randRes -- get new generator
+          in (Cell tuple Mine Hidden, gen)
+
 -- random Int tuple list generator
 randIntTupleList :: StdGen -> (Int, Int) -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
 randIntTupleList g (_, _) currLst 0 = (currLst, g)
@@ -68,3 +76,4 @@ main = do
         print $ fst $ makeRandomInt g (1, 7) -- makeRandomInt test
         print $ fst $ makeRandIntTuple g (1, 7) -- makeRandIntTuple test
         print $ randIntTupleList g (1, 7) [] 10 -- randIntTupleList test
+        print $ makeRandomMine g (1,7) -- makeRandomMine test
