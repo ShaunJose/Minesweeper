@@ -57,8 +57,8 @@ makeRandomMine g bounds =
 randomMineList :: StdGen -> (Int, Int) -> [Cell] -> Int -> ( [Cell], StdGen)
 randomMineList g (_, _) currLst 0 = (currLst, g)
 randomMineList g bounds currLst count =
-  let randRes = makeRandomMine g bounds -- get (randIntTuple, new StdGen)
-    in let tuple = fst randRes -- get randIntTuple
+  let randRes = makeRandomMine g bounds -- get (randMine, new StdGen)
+    in let tuple = fst randRes -- get randMine
       in let gen = snd randRes -- get the new StdGen
         in randomMineList gen bounds (tuple : currLst) (count - 1)
 
@@ -68,6 +68,7 @@ initGame 0 = getChar >>= putChar
 initGame 1 = getChar >>= putChar
 initGame n   = getChar >>= putChar
 
+-- Main
 main = do
         print $ createRow 1 4 0 --create Row Test
         print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden --Eq test
