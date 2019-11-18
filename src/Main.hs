@@ -108,12 +108,19 @@ hasMine :: Cell -> Bool
 hasMine (Cell (_, _) Mine _)    = True
 hasMine _                       = False
 
+-- modify board to reveal/uncover a cell if you can (if it's hidden)
+revealCell :: Board -> Cell -> Board
+revealCell board (Cell (row, col) val Hidden)
+  | val /= (Num 0) = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
+  | otherwise = gridMap newBoard revealSingleCell (Cell (row, col) val Hidden)
+    where
+      newBoard = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
+revealCell board _ = board
 
 -- reveal/uncover a cell if you can (if it's hidden)
-revealCell :: Board -> Cell -> Board
-revealCell board (Cell (row, col) val Hidden) =
-            replaceElem board (Cell (row, col) val Hidden) (Cell (row, col) val Shown)
-revealCell board _ = board
+revealSingleCell :: Cell -> Cell
+revealSingleCell (Cell (row, col) val Hidden) = (Cell (row, col) val Shown)
+revealSingleCell cell = cell
 
 -- flag a cell if you can (if it's Hidden)
 flagCell :: Board -> Cell -> Board
@@ -138,6 +145,9 @@ initGame 0 = getChar >>= putChar
 initGame 1 = getChar >>= putChar
 initGame n   = getChar >>= putChar
 
+getNum0Cell ((Cell (row, col) (Num 0) status) : _) = (Cell (row, col) (Num 0) status)
+getNum0Cell (cell:board) = getNum0Cell board
+
 -- Main
 main = do
         print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden --Eq test
@@ -155,3 +165,4 @@ main = do
         print $ hasMine (Cell (2,1) Mine Hidden) -- hasMine test
         print $ fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) -- fillBoard test
         print $ replaceElem [1,2,3,4,5,1,421,52,13] 421 62 --replaceElem test
+        print $ revealCell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))) (getNum0Cell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))))
