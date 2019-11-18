@@ -5,6 +5,8 @@ module Main where
 -- imports
 import System.Random
 
+-- DATA CREATION --
+
 -- Modelling a cell in minesweeper --
 data Value = Mine | Num Int -- Value = What's in the cell?
                 deriving (Eq, Show)
@@ -16,21 +18,36 @@ data Cell = Cell (RowNum, ColNum) Value Status  -- Cell definition --
               deriving (Eq, Show)
 
 -- Modeeling the board --
--- Board is a list of rows, which is a list of cells
-type Row = [Cell]
-type Board = [[Cell]]
+-- Board is a list of cells
+type Board = [Cell]
 
---TODO implement
+-- FUNCS --
+
+-- gridMap :: Board -> (Cell -> Cell) -> Cell -> Board
+gridMap [] _ _ = []
+gridMap (cell:board) func (Cell (row, col) el status) =
+  let cellNums = gridList (Cell (row, col) el status)
+    in case (isMember (row, col) cellNums) of
+      True  -> (func cell) : gridMap board func (Cell (row, col) el status)
+      False -> (Cell (row, col) el status) : gridMap board func (Cell (row, col) el status)
+
+-- returns a list of locations of neighbouring-cells (exclusive of centre cell's location) NOTE that rows and cols returned may be out of bounds
+gridList :: Cell -> [(RowNum, ColNum)]
+gridList (Cell (row, col) _ _) =
+  [(row-1, col-1), (row-1, col), (row-1, col+1),
+   (row, col-1), {- (row, col), -} (row, col+1),
+   (row+1, col-1), (row+1, col), (row+1, col+1)]
+
 -- Creating the board --
 -- Create the board with all cells Hidden, and place chosen Mines
 createBoard :: RowNum -> ColNum -> RowNum -> [(RowNum, ColNum)] -> Board
 createBoard rows cols currRow mines | rows == currRow = []
 createBoard rows cols currRow mines =
-  createRow currRow cols 0 mines : createBoard rows cols (currRow + 1) mines
+  (createRow currRow cols 0 mines) ++ (createBoard rows cols (currRow + 1) mines)
 
 -- create a row (a list of cells), intialised all to Num 0 and Hidden
 -- NOTE: This function also places the mines in the appropriate cells
-createRow :: RowNum -> ColNum -> ColNum -> [(RowNum, ColNum)] -> Row
+createRow :: RowNum -> ColNum -> ColNum -> [(RowNum, ColNum)] -> Board
 createRow row cols currCol mines | cols == currCol = []
 createRow row cols currCol mines =
   let cellNum = (row, currCol)
@@ -86,5 +103,6 @@ main = do
         print $ fst $ makeRandomInt g (1, 7) -- makeRandomInt test
         print $ fst $ makeRandIntTuple g (1, 7) -- makeRandIntTuple test
         print $ randIntTupleList g (1, 2) [] 4 -- randomTupleList test
-        print $ createRow 1 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --create Row with mines Test
+        print $ createRow 1 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --createRow with mines Test
         print $ createBoard 10 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --create Board with mines Test
+        print $ gridList (Cell (2,4) (Num 0) Hidden) --gridList test
