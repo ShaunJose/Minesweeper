@@ -106,7 +106,31 @@ fillBoard boardCopy (cell:board)
 -- True if cell has a mine, False otherwise
 hasMine :: Cell -> Bool
 hasMine (Cell (_, _) Mine _)    = True
-hasMine _ = False
+hasMine _                       = False
+
+
+-- reveal/uncover a cell if you can (if it's hidden)
+revealCell :: Board -> Cell -> Board
+revealCell board (Cell (row, col) val Hidden) =
+            replaceElem board (Cell (row, col) val Hidden) (Cell (row, col) val Shown)
+revealCell board _ = board
+
+-- flag a cell if you can (if it's Hidden)
+flagCell :: Board -> Cell -> Board
+flagCell board (Cell (row, col) val Hidden) =
+            replaceElem board (Cell (row, col) val Hidden) (Cell (row, col) val Flagged)
+flagCell board _ = board
+
+-- replaces an element in a list with another element
+replaceElem :: (Show a, Eq a) => [a] -> a -> a -> [a]
+replaceElem [] _ _ = []
+replaceElem (currElem : t) oldElem newElem
+  | oldElem == currElem = newElem : replaceElem t oldElem newElem
+  | otherwise           = currElem : replaceElem t oldElem newElem
+
+trial :: [a] -> [a] -> [a]
+trial [] newLst = newLst
+trial (currElem:lst) newLst = trial lst (currElem:newLst)
 
 -- initialise game --
 initGame :: Int -> IO ()
@@ -130,3 +154,4 @@ main = do
         print $ hasMine (Cell (2,1) (Num 0) Hidden) -- hasMine test
         print $ hasMine (Cell (2,1) Mine Hidden) -- hasMine test
         print $ fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) -- fillBoard test
+        print $ replaceElem [1,2,3,4,5,1,421,52,13] 421 62 --replaceElem test
