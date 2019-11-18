@@ -20,15 +20,21 @@ data Cell = Cell (RowNum, ColNum) Value Status  -- Cell definition --
 type Row = [Cell]
 type Board = [[Cell]]
 
+--TODO implement
 -- Creating the board --
 -- Create the board with all cells Hidden, and place chosen Mines
 -- createBoard rows cols | n < 0 = []
 -- createBoard n =
 
+--TODO modify to incorporate Mines
 -- create a row (a list of cells), intialised all to Num 0 and Hidden
-createRow :: RowNum -> ColNum -> ColNum -> Row
-createRow row n currCol | n == currCol = []
-createRow row n currCol = Cell (row, currCol) (Num 0) Hidden : createRow row n (currCol+1)
+createRow :: RowNum -> ColNum -> ColNum -> [(RowNum, ColNum)] -> Row
+createRow row n currCol mines | n == currCol = []
+createRow row n currCol mines =
+  let cellNum = (row, currCol)
+    in case (isMember cellNum mines) of
+      False   -> Cell cellNum (Num 0) Hidden : createRow row n (currCol+1) mines
+      otherwise -> Cell cellNum Mine Hidden : createRow row n (currCol+1) mines
 
 -- [ [Cell (0, 0), Cell (0, 1), Cell (0, 2) Cell (0, 3)],
 --   [Cell (1, 0), Cell (1, 1), Cell (1, 2) Cell (1, 3)],
@@ -45,22 +51,22 @@ makeRandIntTuple g bounds =
                 in let secondRes = makeRandomInt (snd firstRes) bounds
                   in ((fst firstRes, fst secondRes ), snd secondRes)
 
--- random Mine Cell generator
-makeRandomMine :: StdGen -> (Int, Int) -> (Cell, StdGen)
-makeRandomMine g bounds =
-    let randRes = (makeRandIntTuple g bounds) -- get (randIntTuple, StdGen)
-      in let tuple = fst randRes -- get randIntTuple
-        in let gen = snd randRes -- get new generator
-          in (Cell tuple Mine Hidden, gen)
-
--- random mine list generator
-randomMineList :: StdGen -> (Int, Int) -> [Cell] -> Int -> ( [Cell], StdGen)
-randomMineList g (_, _) currLst 0 = (currLst, g)
-randomMineList g bounds currLst count =
-  let randRes = makeRandomMine g bounds -- get (randMine, new StdGen)
-    in let tuple = fst randRes -- get randMine
+-- random Int tuple list generator (with no duplicate tuples)
+-- NOTE: This GENERATES RANDOM MINES' LOCATIONS (unique mine locations)
+randIntTupleList :: StdGen -> (Int, Int) -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
+randIntTupleList g (_, _) currLst 0 = (currLst, g)
+randIntTupleList g bounds currLst count =
+  let randRes = makeRandIntTuple g bounds -- get (randIntTuple, new StdGen)
+    in let tuple = fst randRes -- get randIntTuple
       in let gen = snd randRes -- get the new StdGen
-        in randomMineList gen bounds (tuple : currLst) (count - 1)
+        in case (isMember tuple currLst) of
+          False      -> randIntTupleList gen bounds (tuple:currLst) (count-1)
+          otherwise  -> randIntTupleList gen bounds currLst count
+
+-- checks if in alement exists in a list
+isMember :: (Eq a) => a -> [a] -> Bool
+isMember _ []        = False
+isMember elem (x:xs) = elem == x || isMember elem xs
 
 -- initialise game --
 initGame :: Int -> IO ()
@@ -70,11 +76,10 @@ initGame n   = getChar >>= putChar
 
 -- Main
 main = do
-        print $ createRow 1 4 0 --create Row Test
         print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden --Eq test
         print $ Cell (0,1) (Num 1) Hidden == Cell (1,1) (Num 1) Hidden --Eq test
         g <- getStdGen
         print $ fst $ makeRandomInt g (1, 7) -- makeRandomInt test
         print $ fst $ makeRandIntTuple g (1, 7) -- makeRandIntTuple test
-        print $ makeRandomMine g (1,7) -- makeRandomMine test
-        print $ randomMineList g (1, 7) [] 10 -- randomMineList test
+        print $ randIntTupleList g (1, 2) [] 4 -- randomTupleList test
+        print $ createRow 1 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --create Row with mines Test
