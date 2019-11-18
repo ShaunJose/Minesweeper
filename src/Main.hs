@@ -23,18 +23,20 @@ type Board = [[Cell]]
 --TODO implement
 -- Creating the board --
 -- Create the board with all cells Hidden, and place chosen Mines
--- createBoard rows cols | n < 0 = []
--- createBoard n =
+createBoard :: RowNum -> ColNum -> RowNum -> [(RowNum, ColNum)] -> Board
+createBoard rows cols currRow mines | rows == currRow = []
+createBoard rows cols currRow mines =
+  createRow currRow cols 0 mines : createBoard rows cols (currRow + 1) mines
 
---TODO modify to incorporate Mines
 -- create a row (a list of cells), intialised all to Num 0 and Hidden
+-- NOTE: This function also places the mines in the appropriate cells
 createRow :: RowNum -> ColNum -> ColNum -> [(RowNum, ColNum)] -> Row
-createRow row n currCol mines | n == currCol = []
-createRow row n currCol mines =
+createRow row cols currCol mines | cols == currCol = []
+createRow row cols currCol mines =
   let cellNum = (row, currCol)
     in case (isMember cellNum mines) of
-      False   -> Cell cellNum (Num 0) Hidden : createRow row n (currCol+1) mines
-      otherwise -> Cell cellNum Mine Hidden : createRow row n (currCol+1) mines
+      False   -> Cell cellNum (Num 0) Hidden : createRow row cols (currCol+1) mines
+      otherwise -> Cell cellNum Mine Hidden : createRow row cols (currCol+1) mines
 
 -- [ [Cell (0, 0), Cell (0, 1), Cell (0, 2) Cell (0, 3)],
 --   [Cell (1, 0), Cell (1, 1), Cell (1, 2) Cell (1, 3)],
@@ -66,7 +68,9 @@ randIntTupleList g bounds currLst count =
 -- checks if in alement exists in a list
 isMember :: (Eq a) => a -> [a] -> Bool
 isMember _ []        = False
-isMember elem (x:xs) = elem == x || isMember elem xs
+isMember elem (x:xs) = case (elem == x) of
+                        True  -> True
+                        False -> isMember elem xs
 
 -- initialise game --
 initGame :: Int -> IO ()
@@ -83,3 +87,4 @@ main = do
         print $ fst $ makeRandIntTuple g (1, 7) -- makeRandIntTuple test
         print $ randIntTupleList g (1, 2) [] 4 -- randomTupleList test
         print $ createRow 1 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --create Row with mines Test
+        print $ createBoard 10 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --create Board with mines Test
