@@ -23,13 +23,14 @@ type Board = [Cell]
 
 -- FUNCS --
 
--- gridMap :: Board -> (Cell -> Cell) -> Cell -> Board
+-- applies function to neighbouring cells of cell provided, in the board
+gridMap :: Board -> (Cell -> Cell) -> Cell -> Board
 gridMap [] _ _ = []
-gridMap (cell:board) func (Cell (row, col) el status) =
-  let cellNums = gridList (Cell (row, col) el status)
+gridMap ((Cell (row, col) val status) :board) func cell =
+  let cellNums = gridList cell
     in case (isMember (row, col) cellNums) of
-      True  -> (func cell) : gridMap board func (Cell (row, col) el status)
-      False -> (Cell (row, col) el status) : gridMap board func (Cell (row, col) el status)
+      True  -> (func (Cell (row, col) val status)) : gridMap board func cell
+      False -> (Cell (row, col) val status) : gridMap board func cell
 
 -- returns a list of locations of neighbouring-cells (exclusive of centre cell's location) NOTE that rows and cols returned may be out of bounds
 gridList :: Cell -> [(RowNum, ColNum)]
@@ -37,6 +38,11 @@ gridList (Cell (row, col) _ _) =
   [(row-1, col-1), (row-1, col), (row-1, col+1),
    (row, col-1), {- (row, col), -} (row, col+1),
    (row+1, col-1), (row+1, col), (row+1, col+1)]
+
+-- increment the mine count of an element in a cell
+incrCellElem :: Cell -> Cell
+incrCellElem (Cell (r, c) (Num i) status) = Cell (r, c) (Num (i+1)) status
+incrCellElem cell = cell -- for mine-cell cases
 
 -- Creating the board --
 -- Create the board with all cells Hidden, and place chosen Mines
@@ -105,4 +111,6 @@ main = do
         print $ randIntTupleList g (1, 2) [] 4 -- randomTupleList test
         print $ createRow 1 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --createRow with mines Test
         print $ createBoard 10 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --create Board with mines Test
-        print $ gridList (Cell (2,4) (Num 0) Hidden) --gridList test
+        print $ gridList (Cell (2,1) (Num 0) Hidden) -- gridList test
+        print $ incrCellElem (Cell (2,1) (Num 0) Hidden)
+        print $ gridMap (createBoard 10 4 0 (fst $ randIntTupleList g (1, 2) [] 4)) incrCellElem (Cell (2,1) (Num 0) Hidden) -- gridMap + incrElem test
