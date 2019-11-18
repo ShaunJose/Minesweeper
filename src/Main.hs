@@ -17,7 +17,7 @@ type ColNum = Int -- columnNumber (from 0 to cols-1)
 data Cell = Cell (RowNum, ColNum) Value Status  -- Cell definition --
               deriving (Eq, Show)
 
--- Modeeling the board --
+-- Modelling the board --
 -- Board is a list of cells
 type Board = [Cell]
 
@@ -39,10 +39,10 @@ gridList (Cell (row, col) _ _) =
    (row, col-1), {- (row, col), -} (row, col+1),
    (row+1, col-1), (row+1, col), (row+1, col+1)]
 
--- increment the mine count of an element in a cell
-incrCellElem :: Cell -> Cell
-incrCellElem (Cell (r, c) (Num i) status) = Cell (r, c) (Num (i+1)) status
-incrCellElem cell = cell -- for mine-cell cases
+-- increment the Num value of a cell
+incrCellVal :: Cell -> Cell
+incrCellVal (Cell (r, c) (Num i) status) = Cell (r, c) (Num (i+1)) status
+incrCellVal cell = cell -- for mine-cell cases
 
 -- Creating the board --
 -- Create the board with all cells Hidden, and place chosen Mines
@@ -58,35 +58,36 @@ createRow row cols currCol mines | cols == currCol = []
 createRow row cols currCol mines =
   let cellNum = (row, currCol)
     in case (isMember cellNum mines) of
-      False   -> Cell cellNum (Num 0) Hidden : createRow row cols (currCol+1) mines
-      otherwise -> Cell cellNum Mine Hidden : createRow row cols (currCol+1) mines
-
--- [ [Cell (0, 0), Cell (0, 1), Cell (0, 2) Cell (0, 3)],
---   [Cell (1, 0), Cell (1, 1), Cell (1, 2) Cell (1, 3)],
---   [Cell (2, 0), Cell (2, 1), Cell (2, 2) Cell (2, 3)] ]
+      False -> Cell cellNum (Num 0) Hidden : createRow row cols (currCol+1) mines
+      True  -> Cell cellNum Mine Hidden : createRow row cols (currCol+1) mines
 
 -- random Int generator (within bounds)
 makeRandomInt :: StdGen -> (Int, Int) -> (Int, StdGen)
 makeRandomInt g bounds = randomR bounds g
 
 -- random Int tuple generator (within certain bounds)
-makeRandIntTuple :: StdGen -> (Int, Int) -> ((Int, Int), StdGen)
-makeRandIntTuple g bounds =
-              let firstRes = makeRandomInt g bounds
-                in let secondRes = makeRandomInt (snd firstRes) bounds
+makeRandIntTuple :: StdGen -> (Int, Int) -> (Int, Int) -> ((Int, Int), StdGen)
+makeRandIntTuple g bounds1 bounds2 =
+              let firstRes = makeRandomInt g bounds1
+                in let secondRes = makeRandomInt (snd firstRes) bounds2
                   in ((fst firstRes, fst secondRes ), snd secondRes)
 
 -- random Int tuple list generator (with no duplicate tuples)
 -- NOTE: This GENERATES RANDOM MINES' LOCATIONS (unique mine locations)
-randIntTupleList :: StdGen -> (Int, Int) -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
-randIntTupleList g (_, _) currLst 0 = (currLst, g)
-randIntTupleList g bounds currLst count =
-  let randRes = makeRandIntTuple g bounds -- get (randIntTuple, new StdGen)
+randIntTupleList :: StdGen -> (Int, Int) -> (Int, Int) -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
+randIntTupleList g (_, _) (_, _) currLst 0 = (currLst, g)
+randIntTupleList g bounds1 bounds2 currLst count =
+  let randRes = makeRandIntTuple g bounds1 bounds2 -- get (randIntTuple, new StdGen)
     in let tuple = fst randRes -- get randIntTuple
       in let gen = snd randRes -- get the new StdGen
         in case (isMember tuple currLst) of
-          False      -> randIntTupleList gen bounds (tuple:currLst) (count-1)
-          otherwise  -> randIntTupleList gen bounds currLst count
+          False -> randIntTupleList gen bounds1 bounds2 (tuple:currLst) (count-1)
+          True  -> randIntTupleList gen bounds1 bounds2 currLst count
+
+-- chooses random mines based on rows and columns
+chooseMines :: StdGen -> Int -> Int -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
+chooseMines g rows cols _ mines =
+  randIntTupleList g (0, rows-1) (0, cols-1) [] mines
 
 -- checks if in alement exists in a list
 isMember :: (Eq a) => a -> [a] -> Bool
@@ -94,6 +95,18 @@ isMember _ []        = False
 isMember elem (x:xs) = case (elem == x) of
                         True  -> True
                         False -> isMember elem xs
+
+-- fills board cells with values, given board with place mines
+fillBoard :: Board -> Board -> Board
+fillBoard boardCopy [] = boardCopy
+fillBoard boardCopy (cell:board)
+  | hasMine cell = fillBoard (gridMap boardCopy incrCellVal cell) board --update boardCopy and go to next cell
+  | otherwise    = fillBoard boardCopy board -- go to next cell
+
+-- True if cell has a mine, False otherwise
+hasMine :: Cell -> Bool
+hasMine (Cell (_, _) Mine _)    = True
+hasMine _ = False
 
 -- initialise game --
 initGame :: Int -> IO ()
@@ -107,10 +120,13 @@ main = do
         print $ Cell (0,1) (Num 1) Hidden == Cell (1,1) (Num 1) Hidden --Eq test
         g <- getStdGen
         print $ fst $ makeRandomInt g (1, 7) -- makeRandomInt test
-        print $ fst $ makeRandIntTuple g (1, 7) -- makeRandIntTuple test
-        print $ randIntTupleList g (1, 2) [] 4 -- randomTupleList test
-        print $ createRow 1 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --createRow with mines Test
-        print $ createBoard 10 4 0 (fst $ randIntTupleList g (1, 2) [] 4) --create Board with mines Test
+        print $ fst $ makeRandIntTuple g (1, 7) (1, 4) -- makeRandIntTuple test
+        print $ randIntTupleList g (1, 2) (1, 4) [] 4 -- randomTupleList test
+        print $ createRow 1 4 0 (fst $ chooseMines g 10 4 [] 4) --createRow with mines Test
+        print $ createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 4) --create Board with mines Test
         print $ gridList (Cell (2,1) (Num 0) Hidden) -- gridList test
-        print $ incrCellElem (Cell (2,1) (Num 0) Hidden)
-        print $ gridMap (createBoard 10 4 0 (fst $ randIntTupleList g (1, 2) [] 4)) incrCellElem (Cell (2,1) (Num 0) Hidden) -- gridMap + incrElem test
+        print $ incrCellVal (Cell (2,1) (Num 0) Hidden) -- incr Cell val test
+        print $ gridMap (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 4)) incrCellVal (Cell (2,1) (Num 0) Hidden) -- gridMap + incrElem test
+        print $ hasMine (Cell (2,1) (Num 0) Hidden) -- hasMine test
+        print $ hasMine (Cell (2,1) Mine Hidden) -- hasMine test
+        print $ fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) -- fillBoard test
