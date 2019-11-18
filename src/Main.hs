@@ -21,6 +21,9 @@ data Cell = Cell (RowNum, ColNum) Value Status  -- Cell definition --
 -- Board is a list of cells
 type Board = [Cell]
 
+--status of the game
+data GameStatus = Loss | Win | Ongoing
+
 -- FUNCS --
 
 -- applies function to neighbouring cells of cell provided, in the board
@@ -100,13 +103,13 @@ isMember elem (x:xs) = case (elem == x) of
 fillBoard :: Board -> Board -> Board
 fillBoard boardCopy [] = boardCopy
 fillBoard boardCopy (cell:board)
-  | hasMine cell = fillBoard (gridMap boardCopy incrCellVal cell) board --update boardCopy and go to next cell
+  | isMine cell = fillBoard (gridMap boardCopy incrCellVal cell) board --update boardCopy and go to next cell
   | otherwise    = fillBoard boardCopy board -- go to next cell
 
 -- True if cell has a mine, False otherwise
-hasMine :: Cell -> Bool
-hasMine (Cell (_, _) Mine _)    = True
-hasMine _                       = False
+isMine :: Cell -> Bool
+isMine (Cell (_, _) Mine _)    = True
+isMine _                       = False
 
 -- modify board to reveal/uncover a cell if you can (if it's hidden)
 revealCell :: Board -> Cell -> Board
@@ -127,6 +130,21 @@ flagCell :: Board -> Cell -> Board
 flagCell board (Cell (row, col) val Hidden) =
             replaceElem board (Cell (row, col) val Hidden) (Cell (row, col) val Flagged)
 flagCell board _ = board
+
+-- checks if the game ended (board = latest updated board) (cell = cell chosen)
+updateGameStatus :: Board -> Cell -> GameStatus
+updateGameStatus board cell
+  | isMine cell             = Loss --NOTE: can do without cell (use only board)
+  | safeCellsRevealed board = Win
+  | otherwise               = Ongoing
+
+-- checks if all safe cells are revealed
+safeCellsRevealed :: Board -> Bool
+safeCellsRevealed [] = True
+safeCellsRevealed (cell:board) =
+  case (cell) of
+    (Cell (_, _) (Num i) Hidden) -> False
+    _                            -> safeCellsRevealed board
 
 -- replaces an element in a list with another element
 replaceElem :: (Show a, Eq a) => [a] -> a -> a -> [a]
@@ -161,8 +179,8 @@ main = do
         print $ gridList (Cell (2,1) (Num 0) Hidden) -- gridList test
         print $ incrCellVal (Cell (2,1) (Num 0) Hidden) -- incr Cell val test
         print $ gridMap (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 4)) incrCellVal (Cell (2,1) (Num 0) Hidden) -- gridMap + incrElem test
-        print $ hasMine (Cell (2,1) (Num 0) Hidden) -- hasMine test
-        print $ hasMine (Cell (2,1) Mine Hidden) -- hasMine test
+        print $ isMine (Cell (2,1) (Num 0) Hidden) -- isMine test
+        print $ isMine (Cell (2,1) Mine Hidden) -- isMine test
         print $ fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) -- fillBoard test
         print $ replaceElem [1,2,3,4,5,1,421,52,13] 421 62 --replaceElem test
         print $ revealCell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))) (getNum0Cell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))))
