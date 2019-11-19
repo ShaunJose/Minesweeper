@@ -4,6 +4,8 @@ module Main where
 
 -- imports
 import System.Random
+import qualified Graphics.UI.Threepenny as UI
+import Graphics.UI.Threepenny.Core
 
 -- DATA CREATION --
 
@@ -167,20 +169,39 @@ getNum0Cell ((Cell (row, col) (Num 0) status) : _) = (Cell (row, col) (Num 0) st
 getNum0Cell (cell:board) = getNum0Cell board
 
 -- Main
+-- main = do
+--         print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden --Eq test
+--         print $ Cell (0,1) (Num 1) Hidden == Cell (1,1) (Num 1) Hidden --Eq test
+--         g <- getStdGen
+--         print $ fst $ makeRandomInt g (1, 7) -- makeRandomInt test
+--         print $ fst $ makeRandIntTuple g (1, 7) (1, 4) -- makeRandIntTuple test
+--         print $ randIntTupleList g (1, 2) (1, 4) [] 4 -- randomTupleList test
+--         print $ createRow 1 4 0 (fst $ chooseMines g 10 4 [] 4) --createRow with mines Test
+--         print $ createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 4) --create Board with mines Test
+--         print $ gridList (Cell (2,1) (Num 0) Hidden) -- gridList test
+--         print $ incrCellVal (Cell (2,1) (Num 0) Hidden) -- incr Cell val test
+--         print $ gridMap (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 4)) incrCellVal (Cell (2,1) (Num 0) Hidden) -- gridMap + incrElem test
+--         print $ isMine (Cell (2,1) (Num 0) Hidden) -- isMine test
+--         print $ isMine (Cell (2,1) Mine Hidden) -- isMine test
+--         print $ fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) -- fillBoard test
+--         print $ replaceElem [1,2,3,4,5,1,421,52,13] 421 62 --replaceElem test
+--         print $ revealCell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))) (getNum0Cell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))))
+
+-- canvasSize = 400
+buttonSize = 100
+
+main :: IO ()
 main = do
-        print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden --Eq test
-        print $ Cell (0,1) (Num 1) Hidden == Cell (1,1) (Num 1) Hidden --Eq test
-        g <- getStdGen
-        print $ fst $ makeRandomInt g (1, 7) -- makeRandomInt test
-        print $ fst $ makeRandIntTuple g (1, 7) (1, 4) -- makeRandIntTuple test
-        print $ randIntTupleList g (1, 2) (1, 4) [] 4 -- randomTupleList test
-        print $ createRow 1 4 0 (fst $ chooseMines g 10 4 [] 4) --createRow with mines Test
-        print $ createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 4) --create Board with mines Test
-        print $ gridList (Cell (2,1) (Num 0) Hidden) -- gridList test
-        print $ incrCellVal (Cell (2,1) (Num 0) Hidden) -- incr Cell val test
-        print $ gridMap (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 4)) incrCellVal (Cell (2,1) (Num 0) Hidden) -- gridMap + incrElem test
-        print $ isMine (Cell (2,1) (Num 0) Hidden) -- isMine test
-        print $ isMine (Cell (2,1) Mine Hidden) -- isMine test
-        print $ fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) -- fillBoard test
-        print $ replaceElem [1,2,3,4,5,1,421,52,13] 421 62 --replaceElem test
-        print $ revealCell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))) (getNum0Cell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))))
+  startGUI defaultConfig buttonUI
+
+buttonUI :: Window -> UI ()
+buttonUI window = do
+  button <- UI.button
+    # set UI.height buttonSize
+    # set UI.width buttonSize
+    # set UI.style [("border", "solid black 1px"), ("background", "#AAA")]
+      #+ [string "Click me"]
+  getBody window #+ [return button]
+
+  on UI.click button $ \_ -> do
+    getBody window #+ [ UI.div #+ [ string "You clicked me!"] ]
