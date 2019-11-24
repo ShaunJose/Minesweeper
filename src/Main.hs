@@ -3,9 +3,12 @@
 module Main where
 
 -- imports
-import System.Random
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core
+
+import System.Random
+import Data.IORef
+import Control.Monad.Trans (liftIO)
 
 -- DATA CREATION --
 
@@ -187,21 +190,66 @@ getNum0Cell (cell:board) = getNum0Cell board
 --         print $ replaceElem [1,2,3,4,5,1,421,52,13] 421 62 --replaceElem test
 --         print $ revealCell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))) (getNum0Cell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))))
 
--- canvasSize = 400
-buttonSize = 100
-
 main :: IO ()
 main = do
-  startGUI defaultConfig buttonUI
+  startGUI defaultConfig uiSetup
 
-buttonUI :: Window -> UI ()
-buttonUI window = do
-  button <- UI.button
-    # set UI.height buttonSize
-    # set UI.width buttonSize
-    # set UI.style [("border", "solid black 1px"), ("background", "#AAA")]
-      #+ [string "Click me"]
-  getBody window #+ [return button]
+-- number of rows and columns TODO: decide either pass in or this method and change everywhere, accordingly
+rows = 16
+cols = 35
+-- width and height of cell in minesweeper
+cellWidth = 17.0
+cellHeight = cellWidth -- keep it as a square
+-- spacing between cells
+xGap = 3.0
+yGap = 2.0
+-- width and height of canvas
+canvasWidth = colsNum * cellWidth + (colsNum + 1) * xGap
+                where colsNum = fromIntegral cols
+canvasHeight = rowsNum * cellHeight + (rowsNum + 1) * yGap
+                where rowsNum = fromIntegral rows
 
-  on UI.click button $ \_ -> do
-    getBody window #+ [ UI.div #+ [ string "You clicked me!"] ]
+-- sets up the UI for the game
+uiSetup :: Window -> UI ()
+uiSetup window = do
+    return window # set title "Minesweeper_AI"
+
+    canvas <- UI.canvas
+      # set UI.height (ceiling canvasHeight)
+      # set UI.width (ceiling canvasWidth)
+      # set UI.style [("border", "solid black 1px"), ("background", "lightgray")]
+
+    clear <- UI.button
+       #+ [string "Clear"]
+    fillButton <- UI.button
+       #+ [string "Fill board"]
+
+    getBody window #+
+      [row [element canvas], element clear, element fillButton]
+
+    on UI.click clear $ const $
+      canvas # UI.clearCanvas
+    on UI.click fillButton $ \_ ->
+      do
+        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
+        createBoardUI (0.0, 0.0) rows cols canvas
+
+-- creates the board UI
+createBoardUI :: UI.Point -> RowNum -> ColNum -> UI.Canvas -> UI ()
+createBoardUI (xPos, yPos) rows cols canvas | rows < 1 =
+                                                error "createBoardUI: rows < 1"
+createBoardUI (xPos, yPos) 1 cols canvas =
+    createRowUI (xPos + xGap, yPos + yGap) cols canvas
+createBoardUI (xPos, yPos) rows cols canvas =
+  do
+    createRowUI (xPos + xGap, yPos + yGap) cols canvas
+    createBoardUI (xPos, yPos + yGap + cellHeight) (rows - 1) cols canvas
+
+-- creates the UI for a row of cells
+createRowUI :: UI.Point -> ColNum -> UI.Canvas -> UI ()
+createRowUI coord cols canvas | cols < 1 = error "createRowUI: cols < 1"
+createRowUI coord 1 canvas = canvas # UI.fillRect coord cellWidth cellHeight
+createRowUI (xPos, yPos) cols canvas =
+  do
+    canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
+    createRowUI (xPos + cellWidth + xGap, yPos) (cols - 1) canvas
