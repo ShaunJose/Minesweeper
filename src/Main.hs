@@ -235,32 +235,40 @@ uiSetup window = do
       # set UI.strokeStyle "black"
       # set UI.textAlign UI.Center
 
-    clear <- UI.button
-       #+ [string "Clear"]
-    fillButton <- UI.button
-       #+ [string "Fill board"]
+    human <- UI.button
+      #+ [string "Human player"]
+    ai    <- UI.button
+      #+ [string "AI player"]
 
     coord <- liftIO $ newIORef (0,0)
     g     <- liftIO $ getStdGen
     board <- liftIO $ newIORef (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)))
 
     getBody window #+
-      [row [element canvas], element clear, element fillButton]
+      [row [element canvas], element human, element ai]
 
+    on UI.click human $ \_ ->
+      do
+        UI.delete human
+        UI.delete ai
+        currBoard <- liftIO $ readIORef board
+        liftIO $ (print $ "Current Board: " ++ show currBoard)
+        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
+        createBoardUI (0.0, 0.0) rows cols canvas
+    on UI.click human $ \_ ->
+      do
+        UI.delete human
+        UI.delete ai
+        currBoard <- liftIO $ readIORef board
+        liftIO $ (print $ "Current Board: " ++ show currBoard)
+        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
+        createBoardUI (0.0, 0.0) rows cols canvas
     on UI.mousemove canvas $ \(x,y) ->
       do liftIO $ writeIORef coord (x,y)
     on UI.click canvas $ \_ ->
       do
         (x, y)    <- liftIO $ readIORef coord
         respond board canvas (fromIntegral x, fromIntegral y)
-    on UI.click clear $ const $
-      canvas # UI.clearCanvas
-    on UI.click fillButton $ \_ ->
-      do
-        currBoard <- liftIO $ readIORef board
-        liftIO $ (print $ "Current Board: " ++ show currBoard)
-        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
-        createBoardUI (0.0, 0.0) rows cols canvas
 
 -- creates the board UI
 createBoardUI :: UI.Point -> RowNum -> ColNum -> UI.Canvas -> UI ()
