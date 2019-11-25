@@ -121,9 +121,9 @@ isMine _                       = False
 revealCell :: Board -> Cell -> Board
 revealCell board (Cell (row, col) val Hidden)
   | val /= (Num 0) = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
-  | otherwise = gridMap newBoard revealSingleCell (Cell (row, col) val Hidden)
+  | otherwise = {--gridMap newBoard revealSingleCell (Cell (row, col) val Hidden)
     where
-      newBoard = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
+      newBoard = --}replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
 revealCell board _ = board
 
 -- reveal/uncover a cell if you can (if it's hidden)
@@ -205,7 +205,7 @@ main = do
   -- print $ fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10))
   startGUI defaultConfig uiSetup
 
--- number of rows and columns TODO: decide either pass in or this method and change everywhere, accordingly
+-- number of rows and columns TODO: decide either pass in or use these and change everywhere, accordingly
 rows = 10
 cols = 4
 -- width and height of cell in minesweeper
@@ -214,10 +214,12 @@ cellHeight = cellWidth -- keep it as a square
 -- spacing between cells
 xGap = 3.0
 yGap = 2.0
+-- win or lose message size
+resultSpace = 25
 -- width and height of canvas
 canvasWidth = colsNum * cellWidth + (colsNum + 1) * xGap
                 where colsNum = fromIntegral cols
-canvasHeight = rowsNum * cellHeight + (rowsNum + 1) * yGap
+canvasHeight = rowsNum * cellHeight + (rowsNum + 1) * yGap + resultSpace
                 where rowsNum = fromIntegral rows
 
 -- sets up the UI for the game
@@ -229,6 +231,9 @@ uiSetup window = do
       # set UI.height (ceiling canvasHeight)
       # set UI.width (ceiling canvasWidth)
       # set UI.style [("border", "solid black 1px"), ("background", "lightgray")]
+      # set UI.textFont "12px sans-serif"
+      # set UI.strokeStyle "black"
+      # set UI.textAlign UI.Center
 
     clear <- UI.button
        #+ [string "Clear"]
@@ -289,21 +294,31 @@ respond boardRef canvas coord =
         colNum               = fromIntegral colIndex
         xPos                 = (colNum + 1) * xGap + colNum * cellWidth
         yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-        cellLocation = (xPos, yPos)
+        cellLocation         = (xPos, yPos)
       in case (updateGameStatus newBoard cellClicked) of
       Loss    -> do --TODO stop the game in the end of this
                   canvas # set' UI.fillStyle (UI.htmlColor "red")
                   canvas # UI.fillRect cellLocation cellWidth cellHeight
+                  canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
                   liftIO $ writeIORef boardRef newBoard
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
       Win     -> do
-                  canvas # set' UI.fillStyle (UI.htmlColor "green")
-                  canvas # UI.fillRect (0.0, 0.0) canvasWidth canvasHeight
+                  canvas # set' UI.fillStyle (UI.htmlColor "white")
+                  canvas # UI.fillRect cellLocation cellWidth cellHeight
+                  case (cellClicked) of
+                    Cell (_, _) (Num i) Hidden -> canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+                    otherwise                   -> return ()
+                  canvas # UI.strokeText ("You win!") (canvasWidth/2, canvasHeight - resultSpace/2)
                   liftIO $ writeIORef boardRef newBoard
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
       Ongoing -> do
-                  canvas # set' UI.fillStyle (UI.htmlColor "white")
-                  canvas # UI.fillRect cellLocation cellWidth cellHeight
+                  case (cellClicked) of
+                    Cell (_, _) (Num i) Hidden ->
+                      do
+                        canvas # set' UI.fillStyle (UI.htmlColor "white")
+                        canvas # UI.fillRect cellLocation cellWidth cellHeight
+                        canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+                    otherwise                  -> return ()
                   liftIO $ writeIORef boardRef newBoard
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
 
