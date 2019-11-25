@@ -255,7 +255,7 @@ uiSetup window = do
         liftIO $ (print $ "Current Board: " ++ show currBoard)
         canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
         createBoardUI (0.0, 0.0) rows cols canvas
-    on UI.click human $ \_ ->
+    on UI.click ai $ \_ ->
       do
         UI.delete human
         UI.delete ai
