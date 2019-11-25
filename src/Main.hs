@@ -124,6 +124,7 @@ revealCell board (Cell (row, col) val Hidden)
   | otherwise = gridMap newBoard revealSingleCell (Cell (row, col) val Hidden)
     where
       newBoard = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
+revealCell board _ = board
 
 -- reveal/uncover a cell if you can (if it's hidden)
 revealSingleCell :: Cell -> Cell
@@ -235,6 +236,8 @@ uiSetup window = do
        #+ [string "Fill board"]
 
     coord <- liftIO $ newIORef (0,0)
+    g     <- liftIO $ getStdGen
+    board <- liftIO $ newIORef (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)))
 
     getBody window #+
       [row [element canvas], element clear, element fillButton]
@@ -243,9 +246,9 @@ uiSetup window = do
       do liftIO $ writeIORef coord (x,y)
     on UI.click canvas $ \_ ->
       do
-        (x, y) <- liftIO $ readIORef coord
-        g      <- liftIO $ getStdGen
-        respond (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10))) canvas (fromIntegral x, fromIntegral y)
+        (x, y)    <- liftIO $ readIORef coord
+        currBoard <- liftIO $ readIORef board
+        respond currBoard canvas (fromIntegral x, fromIntegral y) board
     on UI.click clear $ const $
       canvas # UI.clearCanvas
     on UI.click fillButton $ \_ ->
@@ -274,8 +277,8 @@ createRowUI (xPos, yPos) cols canvas =
     createRowUI (xPos + cellWidth + xGap, yPos) (cols - 1) canvas
 
 -- responds to click on the canvas
-respond :: Board -> UI.Canvas -> UI.Point -> UI () --TODO: pass in board
-respond board canvas coord =
+respond :: Board -> UI.Canvas -> UI.Point -> IORef Board -> UI () --TODO: pass in board
+respond board canvas coord boardRef =
   let (rowIndex, colIndex) = getClickedCellNum coord
       cellClicked = findCell board (rowIndex, colIndex)
       newBoard = revealCell board cellClicked
@@ -285,17 +288,20 @@ respond board canvas coord =
       yPos = (rowNum + 1) * yGap + rowNum * cellHeight
       cellLocation = (xPos, yPos)
     in case (updateGameStatus newBoard cellClicked) of
-      Loss    -> do
+      Loss    -> do --TODO stop the game in the end of this
                   canvas # set' UI.fillStyle (UI.htmlColor "red")
                   canvas # UI.fillRect cellLocation cellWidth cellHeight
+                  liftIO $ writeIORef boardRef newBoard
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
       Win     -> do
                   canvas # set' UI.fillStyle (UI.htmlColor "green")
                   canvas # UI.fillRect (0.0, 0.0) canvasWidth canvasHeight
+                  liftIO $ writeIORef boardRef newBoard
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
       Ongoing -> do
                   canvas # set' UI.fillStyle (UI.htmlColor "white")
                   canvas # UI.fillRect cellLocation cellWidth cellHeight
+                  liftIO $ writeIORef boardRef newBoard
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
 
 
