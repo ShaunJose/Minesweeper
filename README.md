@@ -1,5 +1,5 @@
 # Minesweeper   
-Creating Minesweeper with a GUI and AI robot to play it strategically    
+Minesweeper with a GUI and AI to play it strategically    
 
 ### Compile
 ```
