@@ -28,6 +28,7 @@ type Board = [Cell]
 
 --status of the game
 data GameStatus = Loss | Win | Ongoing
+              deriving (Eq, Show)
 
 -- FUNCS --
 
@@ -123,7 +124,6 @@ revealCell board (Cell (row, col) val Hidden)
   | otherwise = gridMap newBoard revealSingleCell (Cell (row, col) val Hidden)
     where
       newBoard = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
-revealCell board _ = board
 
 -- reveal/uncover a cell if you can (if it's hidden)
 revealSingleCell :: Cell -> Cell
@@ -149,7 +149,7 @@ safeCellsRevealed [] = True
 safeCellsRevealed (cell:board) =
   case (cell) of
     (Cell (_, _) (Num i) Hidden) -> False
-    _                            -> safeCellsRevealed board
+    otherwise                    -> safeCellsRevealed board
 
 -- replaces an element in a list with another element
 replaceElem :: (Show a, Eq a) => [a] -> a -> a -> [a]
@@ -171,6 +171,14 @@ initGame n   = getChar >>= putChar
 getNum0Cell ((Cell (row, col) (Num 0) status) : _) = (Cell (row, col) (Num 0) status)
 getNum0Cell (cell:board) = getNum0Cell board
 
+-- finds the cell in a baord based on rownum and colnum
+findCell :: Board -> (RowNum, ColNum) -> Cell
+findCell [] (row, col) = error $ "findCell: cell not found in board" ++ show row ++ ", " ++  show col
+findCell ((Cell (r, c) val stat): board) (row, col) =
+  case (r == row && c == col) of
+    True  -> Cell (r, c) val stat
+    False -> findCell board (row, col)
+
 -- Main
 -- main = do
 --         print $ Cell (0,1) (Num 1) Hidden == Cell (0,1) (Num 1) Hidden --Eq test
@@ -188,15 +196,17 @@ getNum0Cell (cell:board) = getNum0Cell board
 --         print $ isMine (Cell (2,1) Mine Hidden) -- isMine test
 --         print $ fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) -- fillBoard test
 --         print $ replaceElem [1,2,3,4,5,1,421,52,13] 421 62 --replaceElem test
---         print $ revealCell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))) (getNum0Cell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))))
+        -- print $ revealCell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))) (getNum0Cell (fillBoard (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10)) (createBoard 10 4 0 (fst $ chooseMines g 10 4 [] 10))))
 
 main :: IO ()
 main = do
+  g <- getStdGen
+  print $ fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10))
   startGUI defaultConfig uiSetup
 
 -- number of rows and columns TODO: decide either pass in or this method and change everywhere, accordingly
-rows = 16
-cols = 35
+rows = 10
+cols = 4
 -- width and height of cell in minesweeper
 cellWidth = 17.0
 cellHeight = cellWidth -- keep it as a square
@@ -224,9 +234,18 @@ uiSetup window = do
     fillButton <- UI.button
        #+ [string "Fill board"]
 
+    coord <- liftIO $ newIORef (0,0)
+
     getBody window #+
       [row [element canvas], element clear, element fillButton]
 
+    on UI.mousemove canvas $ \(x,y) ->
+      do liftIO $ writeIORef coord (x,y)
+    on UI.click canvas $ \_ ->
+      do
+        (x, y) <- liftIO $ readIORef coord
+        g      <- liftIO $ getStdGen
+        respond (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10))) canvas (fromIntegral x, fromIntegral y)
     on UI.click clear $ const $
       canvas # UI.clearCanvas
     on UI.click fillButton $ \_ ->
@@ -253,3 +272,34 @@ createRowUI (xPos, yPos) cols canvas =
   do
     canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
     createRowUI (xPos + cellWidth + xGap, yPos) (cols - 1) canvas
+
+-- responds to click on the canvas
+respond :: Board -> UI.Canvas -> UI.Point -> UI () --TODO: pass in board
+respond board canvas coord =
+  let (rowIndex, colIndex) = getClickedCellNum coord
+      cellClicked = findCell board (rowIndex, colIndex)
+      newBoard = revealCell board cellClicked
+      rowNum = fromIntegral rowIndex
+      colNum = fromIntegral colIndex
+      xPos = (colNum + 1) * xGap + colNum * cellWidth
+      yPos = (rowNum + 1) * yGap + rowNum * cellHeight
+      cellLocation = (xPos, yPos)
+    in case (updateGameStatus newBoard cellClicked) of
+      Loss    -> do
+                  canvas # set' UI.fillStyle (UI.htmlColor "red")
+                  canvas # UI.fillRect cellLocation cellWidth cellHeight
+                  liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
+      Win     -> do
+                  canvas # set' UI.fillStyle (UI.htmlColor "green")
+                  canvas # UI.fillRect (0.0, 0.0) canvasWidth canvasHeight
+                  liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
+      Ongoing -> do
+                  canvas # set' UI.fillStyle (UI.htmlColor "white")
+                  canvas # UI.fillRect cellLocation cellWidth cellHeight
+                  liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
+
+
+-- gets the cell number clicked on
+getClickedCellNum :: UI.Point -> (RowNum, ColNum)
+getClickedCellNum (x, y) =
+  (floor $ y/(yGap + cellHeight), floor $ x/(xGap + cellWidth) )
