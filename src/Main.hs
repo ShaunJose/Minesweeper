@@ -201,8 +201,8 @@ findCell ((Cell (r, c) val stat): board) (row, col) =
 
 main :: IO ()
 main = do
-  g <- getStdGen
-  print $ fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10))
+  -- g <- getStdGen
+  -- print $ fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10))
   startGUI defaultConfig uiSetup
 
 -- number of rows and columns TODO: decide either pass in or this method and change everywhere, accordingly
@@ -247,12 +247,13 @@ uiSetup window = do
     on UI.click canvas $ \_ ->
       do
         (x, y)    <- liftIO $ readIORef coord
-        currBoard <- liftIO $ readIORef board
-        respond currBoard canvas (fromIntegral x, fromIntegral y) board
+        respond board canvas (fromIntegral x, fromIntegral y)
     on UI.click clear $ const $
       canvas # UI.clearCanvas
     on UI.click fillButton $ \_ ->
       do
+        currBoard <- liftIO $ readIORef board
+        liftIO $ (print $ "Current Board: " ++ show currBoard)
         canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
         createBoardUI (0.0, 0.0) rows cols canvas
 
@@ -277,17 +278,19 @@ createRowUI (xPos, yPos) cols canvas =
     createRowUI (xPos + cellWidth + xGap, yPos) (cols - 1) canvas
 
 -- responds to click on the canvas
-respond :: Board -> UI.Canvas -> UI.Point -> IORef Board -> UI () --TODO: pass in board
-respond board canvas coord boardRef =
-  let (rowIndex, colIndex) = getClickedCellNum coord
-      cellClicked = findCell board (rowIndex, colIndex)
-      newBoard = revealCell board cellClicked
-      rowNum = fromIntegral rowIndex
-      colNum = fromIntegral colIndex
-      xPos = (colNum + 1) * xGap + colNum * cellWidth
-      yPos = (rowNum + 1) * yGap + rowNum * cellHeight
-      cellLocation = (xPos, yPos)
-    in case (updateGameStatus newBoard cellClicked) of
+respond :: IORef Board -> UI.Canvas -> UI.Point -> UI () --TODO: pass in board
+respond boardRef canvas coord =
+  do
+    board <- liftIO $ readIORef boardRef
+    let (rowIndex, colIndex) = getClickedCellNum coord
+        cellClicked          = findCell board (rowIndex, colIndex)
+        newBoard             = revealCell board cellClicked
+        rowNum               = fromIntegral rowIndex
+        colNum               = fromIntegral colIndex
+        xPos                 = (colNum + 1) * xGap + colNum * cellWidth
+        yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
+        cellLocation = (xPos, yPos)
+      in case (updateGameStatus newBoard cellClicked) of
       Loss    -> do --TODO stop the game in the end of this
                   canvas # set' UI.fillStyle (UI.htmlColor "red")
                   canvas # UI.fillRect cellLocation cellWidth cellHeight
