@@ -235,13 +235,15 @@ uiSetup window = do
       # set UI.strokeStyle "black"
       # set UI.textAlign UI.Center
 
+    reset <- UI.button
+      #+ [string "Reset game"]
     human <- UI.button
       #+ [string "Human player"]
     ai    <- UI.button
       #+ [string "AI player"]
 
     coord <- liftIO $ newIORef (0,0)
-    g     <- liftIO $ getStdGen
+    g     <- liftIO $ newStdGen
     board <- liftIO $ newIORef (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] 10)))
 
     getBody window #+
@@ -255,6 +257,7 @@ uiSetup window = do
         liftIO $ (print $ "Current Board: " ++ show currBoard)
         canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
         createBoardUI (0.0, 0.0) rows cols canvas
+        getBody window #+ [element reset]
     on UI.click ai $ \_ ->
       do
         UI.delete human
@@ -263,12 +266,18 @@ uiSetup window = do
         liftIO $ (print $ "Current Board: " ++ show currBoard)
         canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
         createBoardUI (0.0, 0.0) rows cols canvas
+        getBody window #+ [element reset]
     on UI.mousemove canvas $ \(x,y) ->
       do liftIO $ writeIORef coord (x,y)
     on UI.click canvas $ \_ ->
       do
         (x, y)    <- liftIO $ readIORef coord
         respond board canvas (fromIntegral x, fromIntegral y)
+    on UI.click reset $ \_ ->
+      do
+        UI.delete canvas
+        UI.delete reset
+        uiSetup window
 
 -- creates the board UI
 createBoardUI :: UI.Point -> RowNum -> ColNum -> UI.Canvas -> UI ()
