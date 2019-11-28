@@ -125,9 +125,7 @@ isMine _                       = False
 revealCell :: Board -> Cell -> Board
 revealCell board (Cell (row, col) val Hidden)
   | val /= (Num 0) = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
-  | otherwise = {--gridMap newBoard revealSingleCell (Cell (row, col) val Hidden)
-    where
-      newBoard = --}replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
+  | otherwise = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
 revealCell board _ = board
 
 -- modify board to reveal/uncover a cell regardless of it's status
