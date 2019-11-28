@@ -395,6 +395,11 @@ flag boardRef canvas coord =
               canvas # UI.fillRect cellLocation cellWidth cellHeight
               liftIO $ writeIORef boardRef newBoard
               liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
+          _                             ->
+            do
+              liftIO $ writeIORef boardRef newBoard
+              liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
+              return ()
 
 
 -- gets the cell number clicked on
