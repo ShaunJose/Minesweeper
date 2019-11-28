@@ -130,6 +130,12 @@ revealCell board (Cell (row, col) val Hidden)
       newBoard = --}replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
 revealCell board _ = board
 
+-- modify board to reveal/uncover a cell regardless of it's status
+forceRevealCell :: Board -> Cell -> Board
+forceRevealCell board (Cell (row, col) val stat) =
+  replaceElem board (Cell (row, col) val stat) (Cell (row, col) val Shown)
+
+
 -- reveal/uncover a cell if you can (if it's hidden)
 revealSingleCell :: Cell -> Cell
 revealSingleCell (Cell (row, col) val Hidden) = (Cell (row, col) val Shown)
@@ -145,10 +151,11 @@ flagOrUnflag board _ = board
 
 -- checks if the game ended (board = latest updated board) (cell = cell chosen)
 updateGameStatus :: Board -> Cell -> GameStatus
-updateGameStatus board cell
-  | isMine cell             = Loss --NOTE: can do without cell (use only board)
-  | safeCellsRevealed board = Win
-  | otherwise               = Ongoing
+updateGameStatus board (Cell (row, col) val stat)
+  | stat == Flagged                   = Ongoing
+  | isMine (Cell (row, col) val stat) = Loss
+  | safeCellsRevealed board           = Win
+  | otherwise                         = Ongoing
 
 -- checks if all safe cells are revealed
 safeCellsRevealed :: Board -> Bool
@@ -259,6 +266,7 @@ uiSetup window = do
     g     <- liftIO $ newStdGen -- uses the split method to create newGen
     board <- liftIO $ newIORef (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)))
     clickMode <- liftIO $ newIORef RevealMode -- you reveal mines by default
+    gameStat <- liftIO $ newIORef Ongoing -- current game status
 
     getBody window #+
       [row [element canvas], element human, element ai]
@@ -299,11 +307,16 @@ uiSetup window = do
       do liftIO $ writeIORef coord (x,y)
     on UI.click canvas $ \_ ->
       do
-        (x, y)  <- liftIO $ readIORef coord
-        mode    <- liftIO $ readIORef clickMode
-        case mode of
-          RevealMode -> respond board canvas (fromIntegral x, fromIntegral y)
-          FlagMode   -> flag board canvas (fromIntegral x, fromIntegral y)
+        currGameStatus <- liftIO $ readIORef gameStat
+        case currGameStatus of
+          Ongoing ->
+            do
+              (x, y)  <- liftIO $ readIORef coord
+              mode    <- liftIO $ readIORef clickMode
+              case mode of
+                RevealMode -> respond board gameStat canvas (fromIntegral x, fromIntegral y)
+                FlagMode   -> flag board canvas (fromIntegral x, fromIntegral y)
+          _       -> return ()
     on UI.click reset $ \_ ->
       do
         UI.delete canvas
@@ -332,8 +345,8 @@ createRowUI (xPos, yPos) cols canvas =
     createRowUI (xPos + cellWidth + xGap, yPos) (cols - 1) canvas
 
 -- responds to click on the canvas
-respond :: IORef Board -> UI.Canvas -> UI.Point -> UI ()
-respond boardRef canvas coord =
+respond :: IORef Board -> IORef GameStatus -> UI.Canvas -> UI.Point -> UI ()
+respond boardRef gameStatRef canvas coord =
   do
     board <- liftIO $ readIORef boardRef
     let (rowIndex, colIndex) = getClickedCellNum coord
@@ -350,6 +363,8 @@ respond boardRef canvas coord =
                   canvas # UI.fillRect cellLocation cellWidth cellHeight
                   canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
                   liftIO $ writeIORef boardRef newBoard
+                  endGame boardRef canvas
+                  liftIO $ writeIORef gameStatRef Loss
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
       Win     -> do
                   canvas # set' UI.fillStyle (UI.htmlColor "white")
@@ -359,6 +374,8 @@ respond boardRef canvas coord =
                     otherwise                   -> return ()
                   canvas # UI.strokeText ("You win!") (canvasWidth/2, canvasHeight - resultSpace/2)
                   liftIO $ writeIORef boardRef newBoard
+                  endGame boardRef canvas
+                  liftIO $ writeIORef gameStatRef Win
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
       Ongoing -> do
                   case (cellClicked) of
@@ -401,6 +418,46 @@ flag boardRef canvas coord =
               liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
               return ()
 
+-- puts an end to the game (by revealing all other cells)
+endGame :: IORef Board -> UI.Canvas -> UI ()
+endGame boardRef canvas = do
+                           board <- liftIO $ readIORef boardRef
+                           revealRemainingCells boardRef board canvas
+
+-- reveal all cells which aren't Shown yet
+revealRemainingCells :: IORef Board -> Board -> UI.Canvas -> UI ()
+revealRemainingCells _ [] _ = return ()
+revealRemainingCells boardRef (cell: otherCells) canvas =
+    case cell of
+      Cell (_, _) _ Shown -> revealRemainingCells boardRef otherCells canvas
+      otherwise           ->
+        do
+          forceRevealCellComplete boardRef cell canvas
+          revealRemainingCells boardRef otherCells canvas
+
+-- reveals a cell's UI regardless of it's current status
+forceRevealCellComplete :: IORef Board -> Cell -> UI.Canvas -> UI ()
+forceRevealCellComplete boardRef (Cell (rowNum, colNum) val stat) canvas =
+  do
+    board <- liftIO $ readIORef boardRef
+    let newBoard      = forceRevealCell board (Cell (rowNum, colNum) val stat)
+        col           = fromIntegral colNum
+        row           = fromIntegral rowNum
+        xPos          = (col + 1) * xGap + col * cellWidth
+        yPos          = (row + 1) * yGap + row * cellHeight
+        cellLocation  = (xPos, yPos)
+      in case val of
+        Mine ->
+          do
+            canvas # set' UI.fillStyle (UI.htmlColor "pink")
+            canvas # UI.fillRect cellLocation cellWidth cellHeight
+            liftIO $ writeIORef boardRef newBoard
+        (Num i) ->
+          do
+            canvas # set' UI.fillStyle (UI.htmlColor "white")
+            canvas # UI.fillRect cellLocation cellWidth cellHeight
+            canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+            liftIO $ writeIORef boardRef newBoard
 
 -- gets the cell number clicked on
 getClickedCellNum :: UI.Point -> (RowNum, ColNum)
