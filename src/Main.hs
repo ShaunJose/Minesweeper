@@ -376,14 +376,14 @@ playAI boardRef gameStatRef canvas =
           in case (updateGameStatus newBoard (Cell (r, c) v s)) of
             Loss    -> do
                         depictLoss canvas cellLocation
-                        liftIO $ writeIORef boardRef newBoard
-                        endGame boardRef canvas
+                        newestBoard <- endGame newBoard canvas
+                        liftIO $ writeIORef boardRef newestBoard
                         liftIO $ writeIORef gameStatRef Loss
                         liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
             Win     -> do
                         depictWin canvas cellLocation (Cell (r, c) v s)
-                        liftIO $ writeIORef boardRef newBoard
-                        endGame boardRef canvas
+                        newestBoard <- endGame newBoard canvas
+                        liftIO $ writeIORef boardRef newestBoard
                         liftIO $ writeIORef gameStatRef Win
                         liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
             Ongoing -> do
@@ -427,14 +427,14 @@ playAI boardRef gameStatRef canvas =
                 in case (updateGameStatus newBoard (Cell (r, c) v s)) of
                   Loss    -> do
                               depictLoss canvas cellLocation
-                              liftIO $ writeIORef boardRef newBoard
-                              endGame boardRef canvas
+                              newestBoard <- endGame newBoard canvas
+                              liftIO $ writeIORef boardRef newestBoard
                               liftIO $ writeIORef gameStatRef Loss
                               liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
                   Win     -> do
                               depictWin canvas cellLocation (Cell (r, c) v s)
-                              liftIO $ writeIORef boardRef newBoard
-                              endGame boardRef canvas
+                              newestBoard <- endGame newBoard canvas
+                              liftIO $ writeIORef boardRef newestBoard
                               liftIO $ writeIORef gameStatRef Win
                               liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
                   Ongoing -> do
@@ -453,14 +453,14 @@ playAI boardRef gameStatRef canvas =
                     in case (updateGameStatus newBoard (Cell (r, c) v s)) of
                       Loss    -> do
                                   depictLoss canvas cellLocation
-                                  liftIO $ writeIORef boardRef newBoard
-                                  endGame boardRef canvas
+                                  newestBoard <- endGame newBoard canvas
+                                  liftIO $ writeIORef boardRef newestBoard
                                   liftIO $ writeIORef gameStatRef Loss
                                   liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
                       Win     -> do
                                   depictWin canvas cellLocation (Cell (r, c) v s)
-                                  liftIO $ writeIORef boardRef newBoard
-                                  endGame boardRef canvas
+                                  newestBoard <- endGame newBoard canvas
+                                  liftIO $ writeIORef boardRef newestBoard
                                   liftIO $ writeIORef gameStatRef Win
                                   liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
                       Ongoing -> do
@@ -594,14 +594,14 @@ respond boardRef gameStatRef canvas coord =
       in case (updateGameStatus newBoard cellClicked) of
       Loss    -> do
                   depictLoss canvas cellLocation
-                  liftIO $ writeIORef boardRef newBoard
-                  endGame boardRef canvas
+                  newestBoard <- endGame newBoard canvas
+                  liftIO $ writeIORef boardRef newestBoard
                   liftIO $ writeIORef gameStatRef Loss
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
       Win     -> do
                   depictWin canvas cellLocation cellClicked
-                  liftIO $ writeIORef boardRef newBoard
-                  endGame boardRef canvas
+                  newestBoard <- endGame newBoard canvas
+                  liftIO $ writeIORef boardRef newestBoard
                   liftIO $ writeIORef gameStatRef Win
                   liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
       Ongoing -> do
@@ -640,45 +640,41 @@ flag boardRef canvas coord =
               return ()
 
 -- puts an end to the game (by revealing all other cells)
-endGame :: IORef Board -> UI.Canvas -> UI ()
-endGame boardRef canvas = do
-                           board <- liftIO $ readIORef boardRef
-                           revealRemainingCells boardRef board canvas
+endGame :: Board -> UI.Canvas -> UI Board
+endGame board canvas = revealRemainingCells board board canvas
 
 -- reveal all cells which aren't Shown yet
-revealRemainingCells :: IORef Board -> Board -> UI.Canvas -> UI ()
-revealRemainingCells _ [] _ = return ()
-revealRemainingCells boardRef (cell: otherCells) canvas =
+revealRemainingCells :: Board -> Board -> UI.Canvas -> UI Board
+revealRemainingCells newBoard [] _ = return newBoard
+revealRemainingCells boardCopy (cell: otherCells) canvas =
     case cell of
-      Cell (_, _) _ Shown -> revealRemainingCells boardRef otherCells canvas
+      Cell (_, _) _ Shown -> revealRemainingCells boardCopy otherCells canvas
       otherwise           ->
         do
-          forceRevealCellComplete boardRef cell canvas
-          revealRemainingCells boardRef otherCells canvas
+          newBoard <- forceRevealCellComplete boardCopy cell canvas
+          revealRemainingCells newBoard otherCells canvas
 
 -- reveals a cell (UI and programatically) regardless of it's current status
-forceRevealCellComplete :: IORef Board -> Cell -> UI.Canvas -> UI ()
-forceRevealCellComplete boardRef (Cell (rowNum, colNum) val stat) canvas =
-  do
-    board <- liftIO $ readIORef boardRef
-    let newBoard      = forceRevealCell board (Cell (rowNum, colNum) val stat)
-        col           = fromIntegral colNum
-        row           = fromIntegral rowNum
-        xPos          = (col + 1) * xGap + col * cellWidth
-        yPos          = (row + 1) * yGap + row * cellHeight
-        cellLocation  = (xPos, yPos)
-      in case val of
-        Mine ->
-          do
-            canvas # set' UI.fillStyle (UI.htmlColor "pink")
-            canvas # UI.fillRect cellLocation cellWidth cellHeight
-            liftIO $ writeIORef boardRef newBoard
-        (Num i) ->
-          do
-            canvas # set' UI.fillStyle (UI.htmlColor "white")
-            canvas # UI.fillRect cellLocation cellWidth cellHeight
-            canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
-            liftIO $ writeIORef boardRef newBoard
+forceRevealCellComplete :: Board -> Cell -> UI.Canvas -> UI Board
+forceRevealCellComplete board (Cell (rowNum, colNum) val stat) canvas =
+  let newBoard      = forceRevealCell board (Cell (rowNum, colNum) val stat)
+      col           = fromIntegral colNum
+      row           = fromIntegral rowNum
+      xPos          = (col + 1) * xGap + col * cellWidth
+      yPos          = (row + 1) * yGap + row * cellHeight
+      cellLocation  = (xPos, yPos)
+    in case val of
+      Mine ->
+        do
+          canvas # set' UI.fillStyle (UI.htmlColor "pink")
+          canvas # UI.fillRect cellLocation cellWidth cellHeight
+          return newBoard
+      (Num i) ->
+        do
+          canvas # set' UI.fillStyle (UI.htmlColor "white")
+          canvas # UI.fillRect cellLocation cellWidth cellHeight
+          canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+          return newBoard
 
 -- gets the cell number clicked on
 getClickedCellNum :: UI.Point -> (RowNum, ColNum)
