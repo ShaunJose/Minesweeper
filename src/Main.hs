@@ -308,28 +308,24 @@ uiSetup window = do
               liftIO $ writeIORef clickMode RevealMode
               element changeMode
                 # set UI.text revealMsg
+    on UI.click playButton $ \_ ->
+      do
+        playAI board gameStat canvas
     on UI.mousemove canvas $ \(x,y) ->
       do liftIO $ writeIORef coord (x,y)
     on UI.click canvas $ \_ ->
       do
         playerType <- liftIO $ readIORef player
         currGameStatus <- liftIO $ readIORef gameStat
-        case currGameStatus of -- only proceed to play if game is ongoing
-          Ongoing ->
+        case (playerType, currGameStatus) of -- only proceed to play if game is ongoing
+          (Human, Ongoing) ->
             do
               (x, y)     <- liftIO $ readIORef coord
-              playerType <- liftIO $ readIORef player
-              case playerType of
-                Human ->
-                  do
-                    mode    <- liftIO $ readIORef clickMode
-                    case mode of
-                      RevealMode -> respond board gameStat canvas (fromIntegral x, fromIntegral y)
-                      FlagMode   -> flag board canvas (fromIntegral x, fromIntegral y)
-                AI      ->
-                  do
-                    return ()
-          _        -> return () -- case game over
+              mode    <- liftIO $ readIORef clickMode
+              case mode of
+                RevealMode -> respond board gameStat canvas (fromIntegral x, fromIntegral y)
+                FlagMode   -> flag board canvas (fromIntegral x, fromIntegral y)
+          otherwise       -> return () -- case AI player or game over
     on UI.click reset $ \_ -> -- reset = delete everything, start over
       do
         UI.delete canvas
@@ -358,6 +354,64 @@ createRowUI (xPos, yPos) cols canvas =
     canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
     createRowUI (xPos + cellWidth + xGap, yPos) (cols - 1) canvas
 
+playAI :: IORef Board -> IORef GameStatus -> UI.Canvas -> UI ()
+playAI boardRef gameStatRef canvas =
+  do
+    board <- liftIO $ readIORef boardRef
+    case (getHiddenCorner board) of
+      Just (Cell (r, c) v s) ->
+        let newBoard             = revealCell board (Cell (r, c) v s)
+            rowNum               = fromIntegral r
+            colNum               = fromIntegral c
+            xPos                 = (colNum + 1) * xGap + colNum * cellWidth
+            yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
+            cellLocation         = (xPos, yPos)
+          in case (updateGameStatus newBoard (Cell (r, c) v s)) of
+            Loss    -> do
+                        canvas # set' UI.fillStyle (UI.htmlColor "red")
+                        canvas # UI.fillRect cellLocation cellWidth cellHeight
+                        canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
+                        liftIO $ writeIORef boardRef newBoard
+                        endGame boardRef canvas
+                        liftIO $ writeIORef gameStatRef Loss
+                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+            Win     -> do
+                        canvas # set' UI.fillStyle (UI.htmlColor "white")
+                        canvas # UI.fillRect cellLocation cellWidth cellHeight
+                        case ((Cell (r, c) v s)) of
+                          Cell (_, _) (Num i) Hidden -> canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+                          otherwise                   -> return ()
+                        canvas # UI.strokeText ("You win!") (canvasWidth/2, canvasHeight - resultSpace/2)
+                        liftIO $ writeIORef boardRef newBoard
+                        endGame boardRef canvas
+                        liftIO $ writeIORef gameStatRef Win
+                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+            Ongoing -> do
+                        case ((Cell (r, c) v s)) of
+                          Cell (_, _) (Num i) Hidden ->
+                            do
+                              canvas # set' UI.fillStyle (UI.htmlColor "white")
+                              canvas # UI.fillRect cellLocation cellWidth cellHeight
+                              canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+                          otherwise                  -> return ()
+                        liftIO $ writeIORef boardRef newBoard
+                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+
+      Nothing -> return ()
+
+getHiddenCorner :: Board -> Maybe Cell
+getHiddenCorner [] = Nothing
+getHiddenCorner board =
+  case findCell board (0, 0) of
+    Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
+    _ -> case findCell board (0, cols - 1) of
+      Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
+      _ -> case findCell board (rows-1, 0) of
+        Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
+        _ -> case findCell board (rows-1, cols-1) of
+          Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
+          otherwise            -> Nothing
+
 -- responds to click on the canvas
 respond :: IORef Board -> IORef GameStatus -> UI.Canvas -> UI.Point -> UI ()
 respond boardRef gameStatRef canvas coord =
@@ -372,7 +426,7 @@ respond boardRef gameStatRef canvas coord =
         yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
         cellLocation         = (xPos, yPos)
       in case (updateGameStatus newBoard cellClicked) of
-      Loss    -> do --TODO stop the game in the end of this
+      Loss    -> do
                   canvas # set' UI.fillStyle (UI.htmlColor "red")
                   canvas # UI.fillRect cellLocation cellWidth cellHeight
                   canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
