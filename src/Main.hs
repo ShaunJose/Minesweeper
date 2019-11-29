@@ -207,18 +207,11 @@ replaceElem (currElem : t) oldElem newElem
   | oldElem == currElem = newElem : replaceElem t oldElem newElem
   | otherwise           = currElem : replaceElem t oldElem newElem
 
-trial :: [a] -> [a] -> [a]
-trial [] newLst = newLst
-trial (currElem:lst) newLst = trial lst (currElem:newLst)
-
 -- initialise game --
 initGame :: Int -> IO ()
 initGame 0 = getChar >>= putChar
 initGame 1 = getChar >>= putChar
 initGame n   = getChar >>= putChar
-
-getNum0Cell ((Cell (row, col) (Num 0) status) : _) = (Cell (row, col) (Num 0) status)
-getNum0Cell (cell:board) = getNum0Cell board
 
 -- finds the cell in a baord based on rownum and colnum
 findCell :: Board -> (RowNum, ColNum) -> Cell
@@ -585,12 +578,6 @@ getAllNum0ShownCells ((Cell (r, c) (Num 0) Shown) : otherCells) =
   (Cell (r, c) (Num 0) Shown) : getAllNum0ShownCells otherCells
 getAllNum0ShownCells (cell: otherCells) = getAllNum0ShownCells otherCells
 
--- return first Num 0 cell that's revealed, if it exists
-getNum0ShownCell :: Board -> Maybe Cell
-getNum0ShownCell [] = Nothing
-getNum0ShownCell ((Cell (r, c) (Num 0) Shown) : _) = Just (Cell (r, c) (Num 0) Shown)
-getNum0ShownCell (cell: otherCells) = getNum0ShownCell otherCells
-
 -- responds to click on the canvas
 respond :: IORef Board -> IORef GameStatus -> UI.Canvas -> UI.Point -> UI ()
 respond boardRef gameStatRef canvas coord =
@@ -669,7 +656,7 @@ revealRemainingCells boardRef (cell: otherCells) canvas =
           forceRevealCellComplete boardRef cell canvas
           revealRemainingCells boardRef otherCells canvas
 
--- reveals a cell's UI regardless of it's current status
+-- reveals a cell (UI and programatically) regardless of it's current status
 forceRevealCellComplete :: IORef Board -> Cell -> UI.Canvas -> UI ()
 forceRevealCellComplete boardRef (Cell (rowNum, colNum) val stat) canvas =
   do
