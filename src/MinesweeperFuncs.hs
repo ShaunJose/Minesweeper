@@ -91,6 +91,14 @@ isNum0 :: Cell -> Bool
 isNum0 (Cell (_, _) (Num 0) _)     = True
 isNum0 _                           = False
 
+-- True is cell is in the row specified
+isInRow :: RowNum -> Cell -> Bool
+isInRow row (Cell (r, _) _ _) = row == r
+
+-- True is cell is in the column specified
+isInCol :: ColNum -> Cell -> Bool
+isInCol col (Cell (_, c) _ _) = col == c
+
 
 -- Grid-Based Functions (grid = block of 9 cells) --
 -- applies (Cell -> Cell) func to neighbouring cells of cell provided, in the board
@@ -279,6 +287,19 @@ getNum0Opening board =
     in case hiddenCells of
       []        -> Nothing
       (cell: _) -> Just cell
+
+-- returns a hidden cell on the edge of the board
+findHiddenEdge :: Board -> Maybe Cell
+findHiddenEdge [] = Nothing
+findHiddenEdge board =
+  let topEdge = filter (isInRow 0) board
+      botEdge = filter (isInRow (rows - 1)) board
+      leftEdge = filter (isInCol 0) board
+      rightEdge = filter (isInCol (cols - 1)) board
+      hiddenEdges = filter isHidden (topEdge ++ botEdge ++ leftEdge ++ rightEdge)
+    in case hiddenEdges of
+      []        -> Nothing
+      (cell:_)  -> Just cell
 
 -- returns the first hidden cell it finds on the board
 findHiddenCell :: Board -> Maybe Cell

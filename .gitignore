@@ -27,3 +27,7 @@ cabal.project.local~
 
 # Main executable file
 src/Main
+
+# pages files
+*/*.pages
+*.pages

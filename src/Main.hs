@@ -198,10 +198,13 @@ playAI board gameStat canvas =
             Nothing   ->
               case (getHiddenCorner board) of -- if not, find an unopened corner cell
                 Just cell -> makeMove canvas board cell
-                Nothing   ->  --if all else fails, just choose a random cell
-                  case (findHiddenCell board) of
+                Nothing   ->
+                  case (findHiddenEdge board) of -- if not, find an edge cell
                     Just cell -> makeMove canvas board cell
-                    Nothing   -> return (board, gameStat) -- shouldn't really reach this point, ever
+                    Nothing   -> --if all else fails, just choose a the first hdden cell
+                      case (findHiddenCell board) of
+                        Just cell -> makeMove canvas board cell
+                        Nothing   -> return (board, gameStat) -- shouldn't really reach this point, ever
 
 
 -- handles attempt to reveal a cell

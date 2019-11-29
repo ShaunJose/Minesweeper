@@ -4,13 +4,15 @@ module Configs where
 
 import CustomDataTypes
 
--- number of rows and columns
+-- SETTINGS AND CONSTANTS --
+
+-- number of rows and columns of cells in the board
 rows :: RowNum
 rows = 9
 cols :: ColNum
 cols = 9
 
--- number of mines
+-- number of mines in the board
 mines :: Int
 mines = 10
 
