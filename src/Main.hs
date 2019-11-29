@@ -255,7 +255,7 @@ main = do
 
 -- number of rows and columns TODO: decide either pass in or use these and change everywhere, accordingly
 rows = 10
-cols = 4
+cols = 10
 -- number of mines
 mines = 10
 -- width and height of cell in minesweeper
@@ -456,7 +456,7 @@ playAI boardRef gameStatRef canvas =
                   liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
                   return ()
         Nothing   ->
-          case (getHiddenCorner board) of
+          case (findSafeCell board) of
             Just (Cell (r, c) v s) ->
               let newBoard             = revealCell board (Cell (r, c) v s)
                   rowNum               = fromIntegral r
@@ -494,7 +494,46 @@ playAI boardRef gameStatRef canvas =
                                 otherwise                  -> return ()
                               liftIO $ writeIORef boardRef newBoard
                               liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-            Nothing        -> return ()
+            Nothing ->
+              case (getHiddenCorner board) of
+                Just (Cell (r, c) v s) ->
+                  let newBoard             = revealCell board (Cell (r, c) v s)
+                      rowNum               = fromIntegral r
+                      colNum               = fromIntegral c
+                      xPos                 = (colNum + 1) * xGap + colNum * cellWidth
+                      yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
+                      cellLocation         = (xPos, yPos)
+                    in case (updateGameStatus newBoard (Cell (r, c) v s)) of
+                      Loss    -> do
+                                  canvas # set' UI.fillStyle (UI.htmlColor "red")
+                                  canvas # UI.fillRect cellLocation cellWidth cellHeight
+                                  canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
+                                  liftIO $ writeIORef boardRef newBoard
+                                  endGame boardRef canvas
+                                  liftIO $ writeIORef gameStatRef Loss
+                                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+                      Win     -> do
+                                  canvas # set' UI.fillStyle (UI.htmlColor "white")
+                                  canvas # UI.fillRect cellLocation cellWidth cellHeight
+                                  case ((Cell (r, c) v s)) of
+                                    Cell (_, _) (Num i) Hidden -> canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+                                    otherwise                   -> return ()
+                                  canvas # UI.strokeText ("You win!") (canvasWidth/2, canvasHeight - resultSpace/2)
+                                  liftIO $ writeIORef boardRef newBoard
+                                  endGame boardRef canvas
+                                  liftIO $ writeIORef gameStatRef Win
+                                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+                      Ongoing -> do
+                                  case ((Cell (r, c) v s)) of
+                                    Cell (_, _) (Num i) Hidden ->
+                                      do
+                                        canvas # set' UI.fillStyle (UI.htmlColor "white")
+                                        canvas # UI.fillRect cellLocation cellWidth cellHeight
+                                        canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+                                    otherwise                  -> return ()
+                                  liftIO $ writeIORef boardRef newBoard
+                                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+                Nothing        -> return ()
 
 getHiddenCorner :: Board -> Maybe Cell
 getHiddenCorner [] = Nothing
@@ -529,6 +568,27 @@ findMines board (cell: otherCells) =
         else case (num - flaggedCount == (length hiddenCells) && not (null hiddenCells)) of
               True     ->  hiddenCells
               False    ->  findMines board otherCells
+
+-- returns a safe (hidden) cell to open up
+findSafeCell :: Board -> Maybe Cell
+findSafeCell [] = Nothing
+findSafeCell board =
+  let shownCells = getAllShownCells board
+    in case (findSafeCells board shownCells) of
+      []        -> Nothing
+      (cell: _) -> Just cell
+
+-- returns a list of safe (hidden) cells to open up
+findSafeCells :: Board -> [Cell] -> [Cell]
+findSafeCells [] _ = []
+findSafeCells _ [] = []
+findSafeCells board (cell: otherCells) =
+  let (num, flaggedCount, hiddenCells) = getNumFlaggedAndCells board cell
+    in if num == 0
+        then findSafeCells board otherCells -- no mines around Num 0 ! So skip
+        else case (num == flaggedCount && (not (null hiddenCells))) of
+              True     ->  hiddenCells
+              False    ->  findSafeCells board otherCells
 
 -- gets the cell number value, length of flagged cells and hiddenCells around it
 getNumFlaggedAndCells :: Board -> Cell -> (Int, Int, [Cell])
