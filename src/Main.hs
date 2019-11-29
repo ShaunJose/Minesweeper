@@ -11,238 +11,17 @@ import System.Random
 import Data.IORef
 import Control.Monad.Trans (liftIO)
 
--- DATA CREATION --
-
--- Modelling a cell in minesweeper --
-data Value = Mine | Num Int -- Value = What's in the cell?
-                deriving (Eq, Show)
-data Status = Hidden | Shown | Flagged -- Status = status of cell
-                deriving (Eq, Show)
-type RowNum = Int -- rownumber (from 0 to rows-1)
-type ColNum = Int -- columnNumber (from 0 to cols-1)
-data Cell = Cell (RowNum, ColNum) Value Status  -- Cell definition --
-              deriving (Eq, Show)
-
--- Modelling the board --
--- Board is a list of cells
-type Board = [Cell]
-
---status of the game
-data GameStatus = Loss | Win | Ongoing
-              deriving (Eq, Show)
-
--- what does a click on a mine do?
-data ClickMode = RevealMode | FlagMode
-              deriving (Eq)
-
--- human or AI?
-data PlayerType = Human | AI
-
--- FUNCS --
-
--- applies function to neighbouring cells of cell provided, in the board
-gridMap :: Board -> (Cell -> Cell) -> Cell -> Board
-gridMap [] _ _ = []
-gridMap ((Cell (row, col) val status) :board) func cell =
-  let cellNums = gridList cell
-    in case (isMember (row, col) cellNums) of
-      True  -> (func (Cell (row, col) val status)) : gridMap board func cell
-      False -> (Cell (row, col) val status) : gridMap board func cell
-
--- returns a list of locations of neighbouring-cells (exclusive of centre cell's location) NOTE that rows and cols returned may be out of bounds
-gridList :: Cell -> [(RowNum, ColNum)]
-gridList (Cell (row, col) _ _) =
-  [(row-1, col-1), (row-1, col), (row-1, col+1),
-   (row, col-1), {- (row, col), -} (row, col+1),
-   (row+1, col-1), (row+1, col), (row+1, col+1)]
-
--- checks if a cell with (rownum, colnum) must exist in the board
-inRange :: (RowNum, ColNum) -> Bool
-inRange (r, c)
-  | r >= 0 && c >= 0 && r < rows && c < cols = True
-  | otherwise                                = False
-
--- returns a list of locations of neighbouring-cells (exclusive of centre cell's location) IF THEY ARE VALID
-validGridList :: Cell -> [(RowNum, ColNum)]
-validGridList cell = filter inRange (gridList cell)
-
-getNeighbourCells :: Board -> Cell -> [Cell]
-getNeighbourCells board cell =
-  let validTuples = validGridList cell
-    in map (findCell board) validTuples
-
--- increment the Num value of a cell
-incrCellVal :: Cell -> Cell
-incrCellVal (Cell (r, c) (Num i) status) = Cell (r, c) (Num (i+1)) status
-incrCellVal cell = cell -- for mine-cell cases
-
--- Creating the board --
--- Create the board with all cells Hidden, and place chosen Mines
-createBoard :: RowNum -> ColNum -> RowNum -> [(RowNum, ColNum)] -> Board
-createBoard rows cols currRow mines | rows == currRow = []
-createBoard rows cols currRow mines =
-  (createRow currRow cols 0 mines) ++ (createBoard rows cols (currRow + 1) mines)
-
--- create a row (a list of cells), intialised all to Num 0 and Hidden
--- NOTE: This function also places the mines in the appropriate cells
-createRow :: RowNum -> ColNum -> ColNum -> [(RowNum, ColNum)] -> Board
-createRow row cols currCol mines | cols == currCol = []
-createRow row cols currCol mines =
-  let cellNum = (row, currCol)
-    in case (isMember cellNum mines) of
-      False -> Cell cellNum (Num 0) Hidden : createRow row cols (currCol+1) mines
-      True  -> Cell cellNum Mine Hidden : createRow row cols (currCol+1) mines
-
--- random Int generator (within bounds)
-makeRandomInt :: StdGen -> (Int, Int) -> (Int, StdGen)
-makeRandomInt g bounds = randomR bounds g
-
--- random Int tuple generator (within certain bounds)
-makeRandIntTuple :: StdGen -> (Int, Int) -> (Int, Int) -> ((Int, Int), StdGen)
-makeRandIntTuple g bounds1 bounds2 =
-              let firstRes = makeRandomInt g bounds1
-                  secondRes = makeRandomInt (snd firstRes) bounds2
-                in ((fst firstRes, fst secondRes ), snd secondRes)
-
--- random Int tuple list generator (with no duplicate tuples)
--- NOTE: This generates random mines' locations (UNIQUE mine locations)
-randIntTupleList :: StdGen -> (Int, Int) -> (Int, Int) -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
-randIntTupleList g (_, _) (_, _) currLst 0 = (currLst, g)
-randIntTupleList g bounds1 bounds2 currLst count =
-  let randRes = makeRandIntTuple g bounds1 bounds2 -- get (randIntTuple, new StdGen)
-      tuple = fst randRes -- get randIntTuple
-      gen   = snd randRes -- get the new StdGen
-    in case (isMember tuple currLst) of
-      False -> randIntTupleList gen bounds1 bounds2 (tuple:currLst) (count-1)
-      True  -> randIntTupleList gen bounds1 bounds2 currLst count
-
--- chooses random mines based on rows and columns
-chooseMines :: StdGen -> Int -> Int -> [(Int, Int)] -> Int -> ( [(Int, Int)], StdGen)
-chooseMines g rows cols _ mines =
-  randIntTupleList g (0, rows-1) (0, cols-1) [] mines
-
--- checks if in alement exists in a list
-isMember :: (Eq a) => a -> [a] -> Bool
-isMember _ []        = False
-isMember elem (x:xs) = case (elem == x) of
-                        True  -> True
-                        False -> isMember elem xs
-
--- fills board cells with values, given board with place mines
-fillBoard :: Board -> Board -> Board
-fillBoard boardCopy [] = boardCopy
-fillBoard boardCopy (cell:board)
-  | isMine cell = fillBoard (gridMap boardCopy incrCellVal cell) board --update boardCopy and go to next cell
-  | otherwise    = fillBoard boardCopy board -- go to next cell
-
--- True if cell has a mine, False otherwise
-isMine :: Cell -> Bool
-isMine (Cell (_, _) Mine _)    = True
-isMine _                       = False
-
--- True if cell is hidden, false otherwise
-isHidden :: Cell -> Bool
-isHidden (Cell (_, _) _ Hidden)    = True
-isHidden _                         = False
-
--- True if cell is Shown, false otherwise
-isShown :: Cell -> Bool
-isShown (Cell (_, _) _ Shown)     = True
-isShown _                         = False
-
--- True if cell is Flagged, false otherwise
-isFlagged :: Cell -> Bool
-isFlagged (Cell (_, _) _ Flagged)     = True
-isFlagged _                           = False
-
--- returns all cells from a list of cells, that are shown
-getAllShownCells :: [Cell] -> [Cell]
-getAllShownCells cells = filter isShown cells
-
--- modify board to reveal/uncover a cell if you can (if it's hidden)
-revealCell :: Board -> Cell -> Board
-revealCell board (Cell (row, col) val Hidden)
-  | val /= (Num 0) = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
-  | otherwise = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
-revealCell board _ = board
-
--- reveal/uncover a cell if you can (if it's hidden)
-revealSingleCell :: Cell -> Cell
-revealSingleCell (Cell (row, col) val Hidden) = (Cell (row, col) val Shown)
-revealSingleCell cell = cell
-
--- modify board to reveal/uncover a cell regardless of it's status
-forceRevealCell :: Board -> Cell -> Board
-forceRevealCell board (Cell (row, col) val stat) =
-  replaceElem board (Cell (row, col) val stat) (Cell (row, col) val Shown)
-
--- flag a cell if it's Hidden, unflag if if it's flagged
-flagOrUnflag :: Board -> Cell -> Board
-flagOrUnflag board (Cell (row, col) val Hidden) =
-            replaceElem board (Cell (row, col) val Hidden) (Cell (row, col) val Flagged)
-flagOrUnflag board (Cell (row, col) val Flagged) =
-            replaceElem board (Cell (row, col) val Flagged) (Cell (row, col) val Hidden)
-flagOrUnflag board _ = board
-
--- checks if the game ended (board = latest updated board) (cell = cell chosen)
-updateGameStatus :: Board -> Cell -> GameStatus
-updateGameStatus board (Cell (row, col) val stat)
-  | stat == Flagged                   = Ongoing
-  | isMine (Cell (row, col) val stat) = Loss
-  | safeCellsRevealed board           = Win
-  | otherwise                         = Ongoing
-
--- checks if all safe cells are revealed
-safeCellsRevealed :: Board -> Bool
-safeCellsRevealed [] = True
-safeCellsRevealed (cell:board) =
-  case (cell) of
-    (Cell (_, _) (Num i) Hidden) -> False
-    otherwise                    -> safeCellsRevealed board
-
--- replaces an element in a list with another element
-replaceElem :: (Show a, Eq a) => [a] -> a -> a -> [a]
-replaceElem [] _ _ = []
-replaceElem (currElem : t) oldElem newElem
-  | oldElem == currElem = newElem : replaceElem t oldElem newElem
-  | otherwise           = currElem : replaceElem t oldElem newElem
-
--- finds the cell in a baord based on rownum and colnum
-findCell :: Board -> (RowNum, ColNum) -> Cell
-findCell [] (row, col) = error $ "findCell: cell not found in board" ++ show row ++ ", " ++  show col
-findCell ((Cell (r, c) val stat): board) (row, col) =
-  case (r == row && c == col) of
-    True  -> Cell (r, c) val stat
-    False -> findCell board (row, col)
+-- source file imports
+import CustomDataTypes
+import MinesweeperFuncs -- non ui functions of minesweeper
+import Configs  -- constants and other configurations
 
 -- Main method
 main :: IO ()
 main = do
   startGUI defaultConfig uiSetup
 
--- number of rows and columns TODO: decide either pass in or use these and change everywhere, accordingly
-rows = 9
-cols = 9
--- number of mines
-mines = 10
--- width and height of cell in minesweeper
-cellWidth = 17.0
-cellHeight = cellWidth -- keep it as a square
--- spacing between cells
-xGap = 3.0
-yGap = 2.0
--- win or lose message size
-resultSpace = 25
--- some button messages for click mode
-revealMsg = "Change to flag mode" --message displayed when in reveal mode
-flagMsg = "Change to reveal mode" --message displayed when in flag mode
--- width and height of canvas
-canvasWidth = colsNum * cellWidth + (colsNum + 1) * xGap
-                where colsNum = fromIntegral cols
-canvasHeight = rowsNum * cellHeight + (rowsNum + 1) * yGap + resultSpace
-                where rowsNum = fromIntegral rows
-
--- sets up the UI for the game
+-- sets up the UI for the game, and the game itself
 uiSetup :: Window -> UI ()
 uiSetup window = do
     return window # set title "Minesweeper_AI"
@@ -362,12 +141,14 @@ uiSetup window = do
         UI.delete playButton
         uiSetup window -- start over from the beginning
 
+
+-- Board UI Creation --
 -- creates the board UI
 createBoardUI :: UI.Point -> RowNum -> ColNum -> UI.Canvas -> UI ()
 createBoardUI (xPos, yPos) rows cols canvas | rows < 1 =
                                                 error "createBoardUI: rows < 1"
 createBoardUI (xPos, yPos) 1 cols canvas =
-    createRowUI (xPos + xGap, yPos + yGap) cols canvas
+    createRowUI (xPos + xGap, yPos + yGap) cols canvas --create last row
 createBoardUI (xPos, yPos) rows cols canvas =
   do
     createRowUI (xPos + xGap, yPos + yGap) cols canvas
@@ -376,192 +157,14 @@ createBoardUI (xPos, yPos) rows cols canvas =
 -- creates the UI for a row of cells
 createRowUI :: UI.Point -> ColNum -> UI.Canvas -> UI ()
 createRowUI coord cols canvas | cols < 1 = error "createRowUI: cols < 1"
-createRowUI coord 1 canvas = canvas # UI.fillRect coord cellWidth cellHeight
+createRowUI coord 1 canvas = canvas # UI.fillRect coord cellWidth cellHeight --last cell creation (in last column)
 createRowUI (xPos, yPos) cols canvas =
   do
-    canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
+    canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight -- cells just rects
     createRowUI (xPos + cellWidth + xGap, yPos) (cols - 1) canvas
 
--- make move for AI (called when play button is pressed)
-playAI :: Board -> GameStatus -> UI.Canvas -> UI (Board, GameStatus)
-playAI board gameStat canvas =
-    case (getNum0Opening board) of -- first find unopened neighbours of Num 0
-      Just cell -> makeMove canvas board cell
-      Nothing                ->
-       case (findMine board) of -- find an obvious mine if you can
-        Just cell ->
-          do
-            newBoard <- manageFlagging canvas board cell
-            return (newBoard, gameStat)
-        Nothing                 ->
-          case (findSafeCell board) of -- find an obvious safe move if poss
-            Just cell -> makeMove canvas board cell
-            Nothing ->
-              case (getHiddenCorner board) of -- find an unopened corner cell
-                Just cell -> makeMove canvas board cell
-                Nothing        -> return (board, gameStat)
 
-makeMove :: UI.Canvas -> Board -> Cell -> UI (Board, GameStatus)
-makeMove canvas board (Cell (r, c) v s) =
-  let newBoard = revealCell board (Cell (r, c) v s)
-    in do
-        cellLocation <- getCellStartPt (r, c)
-        (newestBoard, gameStatus) <- updateBoardNStatus canvas newBoard (Cell (r, c) v s) cellLocation
-        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-        return (newestBoard, gameStatus)
-
-manageFlagging :: UI.Canvas -> Board -> Cell -> UI Board
-manageFlagging canvas board (Cell (r, c) v s) =
-  let newBoard = flagOrUnflag board (Cell (r, c) v s)
-    in do
-        (xPos, yPos) <- getCellStartPt (r, c)
-        handleFlaggingUI canvas (Cell (r, c) v s) (xPos, yPos)
-        return newBoard
-
-handleFlaggingUI :: UI.Canvas -> Cell -> UI.Point -> UI ()
-handleFlaggingUI canvas (Cell (_, _) _ stat) (xPos, yPos) =
-  case stat of
-    Hidden  ->
-      canvas # UI.strokeText ("F") (xPos + cellWidth/2, yPos + cellHeight/2)
-    Flagged ->
-      do
-        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
-        canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
-    _       ->
-      return ()
-
-getCellStartPt :: (RowNum, ColNum) -> UI UI.Point
-getCellStartPt (r, c) =
-  let rowNum               = fromIntegral r
-      colNum               = fromIntegral c
-      xPos                 = (colNum + 1) * xGap + colNum * cellWidth
-      yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-    in return (xPos, yPos)
-
-updateBoardNStatus :: UI.Canvas -> Board -> Cell -> UI.Point -> UI (Board, GameStatus)
-updateBoardNStatus canvas board cell cellLocation =
-  case (updateGameStatus board cell) of
-    Loss    -> do
-                depictLoss canvas cellLocation
-                newBoard <- endGame board canvas
-                return (newBoard, Loss)
-    Win     -> do
-                depictWin canvas cellLocation cell
-                newBoard <- endGame board canvas
-                return (newBoard, Win)
-    Ongoing -> do
-                depictOpening canvas cellLocation cell
-                return (board, Ongoing)
-
-depictLoss :: UI.Canvas -> UI.Point -> UI ()
-depictLoss canvas cellLocation =
-  do
-    canvas # set' UI.fillStyle (UI.htmlColor "red")
-    canvas # UI.fillRect cellLocation cellWidth cellHeight
-    canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
-
-depictWin :: UI.Canvas -> UI.Point -> Cell -> UI ()
-depictWin canvas cellLocation cell =
-  do
-    depictOpening canvas cellLocation cell -- open cell, then say it's a win
-    canvas # UI.strokeText ("You win!") (canvasWidth/2, canvasHeight - resultSpace/2)
-
--- show UI stuff for opening of a cell, if it's not a mine and hidden
-depictOpening :: UI.Canvas -> UI.Point -> Cell -> UI ()
-depictOpening canvas (xPos, yPos) cell =
-  case (cell) of
-    Cell (_, _) (Num i) Hidden ->
-      do
-        canvas # set' UI.fillStyle (UI.htmlColor "white")
-        canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
-        canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
-    otherwise                  -> return ()
-
-getHiddenCorner :: Board -> Maybe Cell
-getHiddenCorner [] = Nothing
-getHiddenCorner board =
-  case findCell board (0, 0) of
-    Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
-    _ -> case findCell board (0, cols - 1) of
-      Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
-      _ -> case findCell board (rows-1, 0) of
-        Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
-        _ -> case findCell board (rows-1, cols-1) of
-          Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
-          otherwise            -> Nothing
-
--- returns a (hidden) mine
-findMine :: Board -> Maybe Cell
-findMine [] = Nothing
-findMine board =
-  let shownCells = getAllShownCells board
-    in case (findMines board shownCells) of
-      []        -> Nothing
-      (cell: _) -> Just cell
-
--- returns a list of (hidden) mines to flag
-findMines :: Board -> [Cell] -> [Cell]
-findMines [] _ = []
-findMines _ [] = []
-findMines board (cell: otherCells) =
-  let (num, flaggedCount, hiddenCells) = getNumFlaggedAndCells board cell
-    in if num == 0
-        then findMines board otherCells -- no mines around Num 0 ! So skip
-        else case (num - flaggedCount == (length hiddenCells) && not (null hiddenCells)) of
-              True     ->  hiddenCells
-              False    ->  findMines board otherCells
-
--- returns a safe (hidden) cell to open up
-findSafeCell :: Board -> Maybe Cell
-findSafeCell [] = Nothing
-findSafeCell board =
-  let shownCells = getAllShownCells board
-    in case (findSafeCells board shownCells) of
-      []        -> Nothing
-      (cell: _) -> Just cell
-
--- returns a list of safe (hidden) cells to open up
-findSafeCells :: Board -> [Cell] -> [Cell]
-findSafeCells [] _ = []
-findSafeCells _ [] = []
-findSafeCells board (cell: otherCells) =
-  let (num, flaggedCount, hiddenCells) = getNumFlaggedAndCells board cell
-    in if num == 0
-        then findSafeCells board otherCells -- no mines around Num 0 ! So skip
-        else case (num == flaggedCount && (not (null hiddenCells))) of
-              True     ->  hiddenCells
-              False    ->  findSafeCells board otherCells
-
--- gets the cell number value, length of flagged cells and hiddenCells around it
-getNumFlaggedAndCells :: Board -> Cell -> (Int, Int, [Cell])
-getNumFlaggedAndCells board (Cell (r, c) (Num i) s) =
-  let neighbours   = getNeighbourCells board (Cell (r, c) (Num i) s)
-      flaggedCells = filter isFlagged neighbours
-      hiddenCells  = filter isHidden neighbours
-    in (i, length flaggedCells, hiddenCells)
-getNumFlaggedAndCells board cell = --in case of a mine cell
-  let neighbours   = getNeighbourCells board cell
-      flaggedCells = filter isFlagged neighbours
-      hiddenCells  = filter isHidden neighbours
-    in (-1, length flaggedCells, hiddenCells)
-
--- return a HIDDEN neighbour of a shown num 0 cell, if it exists
-getNum0Opening :: Board -> Maybe Cell
-getNum0Opening [] = Nothing
-getNum0Opening board =
-  let num0ShownList  = getAllNum0ShownCells board
-      neighbourCells = concat $ map (getNeighbourCells board) num0ShownList
-      hiddenCells    = filter isHidden neighbourCells
-    in case hiddenCells of
-      []        -> Nothing
-      (cell: _) -> Just cell
-
-getAllNum0ShownCells :: Board -> [Cell]
-getAllNum0ShownCells [] = []
-getAllNum0ShownCells ((Cell (r, c) (Num 0) Shown) : otherCells) =
-  (Cell (r, c) (Num 0) Shown) : getAllNum0ShownCells otherCells
-getAllNum0ShownCells (cell: otherCells) = getAllNum0ShownCells otherCells
-
+-- Making and Handling Moves --
 -- responds to click on the canvas by the Human, when in RevealMode
 revealResponse :: Board -> GameStatus -> UI.Canvas -> UI.Point -> UI (Board, GameStatus)
 revealResponse board gameStat canvas coord =
@@ -577,6 +180,113 @@ flagResponse board canvas coord =
       in do
           newBoard <- manageFlagging canvas board cellClicked
           return newBoard
+
+-- make move for AI (called when play button is pressed)
+playAI :: Board -> GameStatus -> UI.Canvas -> UI (Board, GameStatus)
+playAI board gameStat canvas =
+    case (getNum0Opening board) of -- first find unopened neighbours of Num 0
+      Just cell -> makeMove canvas board cell
+      Nothing   ->
+       case (findMine board) of -- if not, find an obvious mine if you can
+        Just cell ->
+          do
+            newBoard <- manageFlagging canvas board cell
+            return (newBoard, gameStat)
+        Nothing   ->
+          case (findSafeCell board) of -- if not, find an obvious safe move if poss
+            Just cell -> makeMove canvas board cell
+            Nothing   ->
+              case (getHiddenCorner board) of -- if not, find an unopened corner cell
+                Just cell -> makeMove canvas board cell
+                Nothing   -> return (board, gameStat) -- if all above fails
+
+-- handles attempt to reveal a cell
+makeMove :: UI.Canvas -> Board -> Cell -> UI (Board, GameStatus)
+makeMove canvas board (Cell (r, c) v s) =
+  let newBoard = revealCell board (Cell (r, c) v s)
+    in do
+        cellLocation <- getCellStartPt (r, c)
+        (newestBoard, gameStatus) <- updateBoardNStatus canvas newBoard (Cell (r, c) v s) cellLocation
+        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+        return (newestBoard, gameStatus)
+
+-- handles attempt to flag a cell
+manageFlagging :: UI.Canvas -> Board -> Cell -> UI Board
+manageFlagging canvas board (Cell (r, c) v s) =
+  let newBoard = flagOrUnflag board (Cell (r, c) v s)
+    in do
+        (xPos, yPos) <- getCellStartPt (r, c)
+        handleFlaggingUI canvas (Cell (r, c) v s) (xPos, yPos)
+        return newBoard
+
+-- updates the board UI based on flagging/unflagging a cell
+handleFlaggingUI :: UI.Canvas -> Cell -> UI.Point -> UI ()
+handleFlaggingUI canvas (Cell (_, _) _ stat) (xPos, yPos) =
+  case stat of
+    Hidden  ->
+      canvas # UI.strokeText ("F") (xPos + cellWidth/2, yPos + cellHeight/2)
+    Flagged ->
+      do
+        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
+        canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
+    _       ->
+      return ()
+
+-- gets the cell number that was clicked on by the Human player
+getClickedCellNum :: UI.Point -> (RowNum, ColNum)
+getClickedCellNum (x, y) =
+  (floor $ y/(yGap + cellHeight), floor $ x/(xGap + cellWidth) )
+
+-- get the cell's top-left coordinates
+getCellStartPt :: (RowNum, ColNum) -> UI UI.Point
+getCellStartPt (r, c) =
+  let rowNum               = fromIntegral r
+      colNum               = fromIntegral c
+      xPos                 = (colNum + 1) * xGap + colNum * cellWidth
+      yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
+    in return (xPos, yPos)
+
+-- Updates the board UI based on game outcome and cell clicked
+updateBoardNStatus :: UI.Canvas -> Board -> Cell -> UI.Point -> UI (Board, GameStatus)
+updateBoardNStatus canvas board cell cellLocation =
+  case (updateGameStatus board cell) of
+    Loss    -> do
+                depictLoss canvas cellLocation
+                newBoard <- endGame board canvas
+                return (newBoard, Loss)
+    Win     -> do
+                depictWin canvas cellLocation cell
+                newBoard <- endGame board canvas
+                return (newBoard, Win)
+    Ongoing -> do
+                depictOpening canvas cellLocation cell
+                return (board, Ongoing)
+
+-- display a loss screen, when the player loses (shows UI for opening a mine)
+depictLoss :: UI.Canvas -> UI.Point -> UI ()
+depictLoss canvas cellLocation =
+  do
+    canvas # set' UI.fillStyle (UI.htmlColor "red")
+    canvas # UI.fillRect cellLocation cellWidth cellHeight
+    canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
+
+-- display a win screen, when the player wins
+depictWin :: UI.Canvas -> UI.Point -> Cell -> UI ()
+depictWin canvas cellLocation cell =
+  do
+    depictOpening canvas cellLocation cell -- open cell, then say it's a win
+    canvas # UI.strokeText ("You win!") (canvasWidth/2, canvasHeight - resultSpace/2)
+
+-- show UI stuff for opening of a hidden cell, if it's not a mine
+depictOpening :: UI.Canvas -> UI.Point -> Cell -> UI ()
+depictOpening canvas (xPos, yPos) cell =
+  case (cell) of
+    Cell (_, _) (Num i) Hidden ->
+      do
+        canvas # set' UI.fillStyle (UI.htmlColor "white")
+        canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
+        canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+    otherwise                  -> return ()
 
 -- puts an end to the game (by revealing all other cells)
 endGame :: Board -> UI.Canvas -> UI Board
@@ -614,8 +324,3 @@ forceRevealCellComplete board (Cell (rowNum, colNum) val stat) canvas =
           canvas # UI.fillRect cellLocation cellWidth cellHeight
           canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
           return newBoard
-
--- gets the cell number clicked on
-getClickedCellNum :: UI.Point -> (RowNum, ColNum)
-getClickedCellNum (x, y) =
-  (floor $ y/(yGap + cellHeight), floor $ x/(xGap + cellWidth) )

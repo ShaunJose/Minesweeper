@@ -1,14 +1,14 @@
 # Minesweeper   
 Minesweeper with a GUI and AI to play it strategically    
 
-### Compile
+### Compile (Note that you need to be INSIDE the src directory)  
 ```
-ghc src/Main.hs
+ghc Main.hs
 ```
 
 ### Run
 ```
-./src/Main
+./Main
 ```
 
 ### Dependencies
