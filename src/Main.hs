@@ -2,10 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
--- imports
+-- ThreePennyGUI imports
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core
 
+-- haskell library imports
 import System.Random
 import Data.IORef
 import Control.Monad.Trans (liftIO)
@@ -252,6 +253,7 @@ uiSetup :: Window -> UI ()
 uiSetup window = do
     return window # set title "Minesweeper_AI"
 
+    -- define canvas and style
     canvas <- UI.canvas
       # set UI.height (ceiling canvasHeight)
       # set UI.width (ceiling canvasWidth)
@@ -260,17 +262,19 @@ uiSetup window = do
       # set UI.strokeStyle "black"
       # set UI.textAlign UI.Center
 
-    human <- UI.button
+    -- define buttons
+    human <- UI.button -- play as human button option
       #+ [string "Human player"]
-    ai    <- UI.button
+    ai    <- UI.button -- play as AI button option
       #+ [string "AI player"]
-    reset <- UI.button
+    reset <- UI.button -- reset game button
       #+ [string "Reset game"]
-    changeMode <- UI.button
+    changeMode <- UI.button -- change mode to reveal/flagmode as a human player
       #+ [string revealMsg]
-    playButton <- UI.button
+    playButton <- UI.button -- play move button for the AI player
       #+ [string "Play move"]
 
+    -- IOReferences
     coord <- liftIO $ newIORef (0,0)
     g     <- liftIO $ newStdGen -- uses the split method to create newGen
     board <- liftIO $ newIORef (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)))
@@ -368,13 +372,8 @@ playAI boardRef gameStatRef canvas =
     case (getNum0Opening board) of
       Just (Cell (r, c) v s) ->
         let newBoard             = revealCell board (Cell (r, c) v s)
-            rowNum               = fromIntegral r
-            colNum               = fromIntegral c
-            xPos                 = (colNum + 1) * xGap + colNum * cellWidth
-            yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-            cellLocation         = (xPos, yPos)
-          in
-            do
+          in do
+              cellLocation <- getCellStartPt (r, c)
               (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
               liftIO $ writeIORef boardRef newestBoard
               liftIO $ writeIORef gameStatRef gameStatus
@@ -408,13 +407,8 @@ playAI boardRef gameStatRef canvas =
           case (findSafeCell board) of
             Just (Cell (r, c) v s) ->
               let newBoard             = revealCell board (Cell (r, c) v s)
-                  rowNum               = fromIntegral r
-                  colNum               = fromIntegral c
-                  xPos                 = (colNum + 1) * xGap + colNum * cellWidth
-                  yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-                  cellLocation         = (xPos, yPos)
-                in
-                  do
+                in do
+                    cellLocation <- getCellStartPt (r, c)
                     (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
                     liftIO $ writeIORef boardRef newestBoard
                     liftIO $ writeIORef gameStatRef gameStatus
@@ -423,18 +417,21 @@ playAI boardRef gameStatRef canvas =
               case (getHiddenCorner board) of
                 Just (Cell (r, c) v s) ->
                   let newBoard             = revealCell board (Cell (r, c) v s)
-                      rowNum               = fromIntegral r
-                      colNum               = fromIntegral c
-                      xPos                 = (colNum + 1) * xGap + colNum * cellWidth
-                      yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-                      cellLocation         = (xPos, yPos)
-                    in
-                      do
+                    in do
+                        cellLocation <- getCellStartPt (r, c)
                         (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
                         liftIO $ writeIORef boardRef newestBoard
                         liftIO $ writeIORef gameStatRef gameStatus
                         liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
                 Nothing        -> return ()
+
+getCellStartPt :: (RowNum, ColNum) -> UI UI.Point
+getCellStartPt (r, c) =
+  let rowNum               = fromIntegral r
+      colNum               = fromIntegral c
+      xPos                 = (colNum + 1) * xGap + colNum * cellWidth
+      yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
+    in return (xPos, yPos)
 
 updateBoard :: UI.Canvas -> Board -> Cell -> UI.Point -> UI (Board, GameStatus)
 updateBoard canvas board cell cellLocation =
@@ -450,7 +447,6 @@ updateBoard canvas board cell cellLocation =
     Ongoing -> do
                 depictOpening canvas cellLocation cell
                 return (board, Ongoing)
-
 
 depictLoss :: UI.Canvas -> UI.Point -> UI ()
 depictLoss canvas cellLocation =
@@ -569,13 +565,8 @@ respond boardRef gameStatRef canvas coord =
     let (rowIndex, colIndex) = getClickedCellNum coord
         cellClicked          = findCell board (rowIndex, colIndex)
         newBoard             = revealCell board cellClicked
-        rowNum               = fromIntegral rowIndex
-        colNum               = fromIntegral colIndex
-        xPos                 = (colNum + 1) * xGap + colNum * cellWidth
-        yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-        cellLocation         = (xPos, yPos)
-      in
-        do
+      in do
+          cellLocation <- getCellStartPt (rowIndex, colIndex)
           (newestBoard, gameStatus) <- updateBoard canvas newBoard cellClicked cellLocation
           liftIO $ writeIORef boardRef newestBoard
           liftIO $ writeIORef gameStatRef gameStatus
