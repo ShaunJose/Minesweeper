@@ -373,23 +373,12 @@ playAI boardRef gameStatRef canvas =
             xPos                 = (colNum + 1) * xGap + colNum * cellWidth
             yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
             cellLocation         = (xPos, yPos)
-          in case (updateGameStatus newBoard (Cell (r, c) v s)) of
-            Loss    -> do
-                        depictLoss canvas cellLocation
-                        newestBoard <- endGame newBoard canvas
-                        liftIO $ writeIORef boardRef newestBoard
-                        liftIO $ writeIORef gameStatRef Loss
-                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-            Win     -> do
-                        depictWin canvas cellLocation (Cell (r, c) v s)
-                        newestBoard <- endGame newBoard canvas
-                        liftIO $ writeIORef boardRef newestBoard
-                        liftIO $ writeIORef gameStatRef Win
-                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-            Ongoing -> do
-                        depictOpening canvas cellLocation (Cell (r, c) v s)
-                        liftIO $ writeIORef boardRef newBoard
-                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+          in
+            do
+              (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
+              liftIO $ writeIORef boardRef newestBoard
+              liftIO $ writeIORef gameStatRef gameStatus
+              liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
       Nothing   -> case (findMine board) of
         Just (Cell (r, c) v s) ->
           let newBoard             = flagOrUnflag board (Cell (r, c) v s)
@@ -424,23 +413,12 @@ playAI boardRef gameStatRef canvas =
                   xPos                 = (colNum + 1) * xGap + colNum * cellWidth
                   yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
                   cellLocation         = (xPos, yPos)
-                in case (updateGameStatus newBoard (Cell (r, c) v s)) of
-                  Loss    -> do
-                              depictLoss canvas cellLocation
-                              newestBoard <- endGame newBoard canvas
-                              liftIO $ writeIORef boardRef newestBoard
-                              liftIO $ writeIORef gameStatRef Loss
-                              liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                  Win     -> do
-                              depictWin canvas cellLocation (Cell (r, c) v s)
-                              newestBoard <- endGame newBoard canvas
-                              liftIO $ writeIORef boardRef newestBoard
-                              liftIO $ writeIORef gameStatRef Win
-                              liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                  Ongoing -> do
-                              depictOpening canvas cellLocation (Cell (r, c) v s)
-                              liftIO $ writeIORef boardRef newBoard
-                              liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+                in
+                  do
+                    (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
+                    liftIO $ writeIORef boardRef newestBoard
+                    liftIO $ writeIORef gameStatRef gameStatus
+                    liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
             Nothing ->
               case (getHiddenCorner board) of
                 Just (Cell (r, c) v s) ->
@@ -450,24 +428,29 @@ playAI boardRef gameStatRef canvas =
                       xPos                 = (colNum + 1) * xGap + colNum * cellWidth
                       yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
                       cellLocation         = (xPos, yPos)
-                    in case (updateGameStatus newBoard (Cell (r, c) v s)) of
-                      Loss    -> do
-                                  depictLoss canvas cellLocation
-                                  newestBoard <- endGame newBoard canvas
-                                  liftIO $ writeIORef boardRef newestBoard
-                                  liftIO $ writeIORef gameStatRef Loss
-                                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                      Win     -> do
-                                  depictWin canvas cellLocation (Cell (r, c) v s)
-                                  newestBoard <- endGame newBoard canvas
-                                  liftIO $ writeIORef boardRef newestBoard
-                                  liftIO $ writeIORef gameStatRef Win
-                                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                      Ongoing -> do
-                                  depictOpening canvas cellLocation (Cell (r, c) v s)
-                                  liftIO $ writeIORef boardRef newBoard
-                                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+                    in
+                      do
+                        (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
+                        liftIO $ writeIORef boardRef newestBoard
+                        liftIO $ writeIORef gameStatRef gameStatus
+                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
                 Nothing        -> return ()
+
+updateBoard :: UI.Canvas -> Board -> Cell -> UI.Point -> UI (Board, GameStatus)
+updateBoard canvas board cell cellLocation =
+  case (updateGameStatus board cell) of
+    Loss    -> do
+                depictLoss canvas cellLocation
+                newBoard <- endGame board canvas
+                return (newBoard, Loss)
+    Win     -> do
+                depictWin canvas cellLocation cell
+                newBoard <- endGame board canvas
+                return (newBoard, Win)
+    Ongoing -> do
+                depictOpening canvas cellLocation cell
+                return (board, Ongoing)
+
 
 depictLoss :: UI.Canvas -> UI.Point -> UI ()
 depictLoss canvas cellLocation =
@@ -591,23 +574,12 @@ respond boardRef gameStatRef canvas coord =
         xPos                 = (colNum + 1) * xGap + colNum * cellWidth
         yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
         cellLocation         = (xPos, yPos)
-      in case (updateGameStatus newBoard cellClicked) of
-      Loss    -> do
-                  depictLoss canvas cellLocation
-                  newestBoard <- endGame newBoard canvas
-                  liftIO $ writeIORef boardRef newestBoard
-                  liftIO $ writeIORef gameStatRef Loss
-                  liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
-      Win     -> do
-                  depictWin canvas cellLocation cellClicked
-                  newestBoard <- endGame newBoard canvas
-                  liftIO $ writeIORef boardRef newestBoard
-                  liftIO $ writeIORef gameStatRef Win
-                  liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
-      Ongoing -> do
-                  depictOpening canvas cellLocation cellClicked
-                  liftIO $ writeIORef boardRef newBoard
-                  liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
+      in
+        do
+          (newestBoard, gameStatus) <- updateBoard canvas newBoard cellClicked cellLocation
+          liftIO $ writeIORef boardRef newestBoard
+          liftIO $ writeIORef gameStatRef gameStatus
+          liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
 
 flag :: IORef Board -> UI.Canvas -> UI.Point -> UI ()
 flag boardRef canvas coord =
