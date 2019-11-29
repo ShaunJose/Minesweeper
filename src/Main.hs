@@ -205,10 +205,10 @@ makeMove :: UI.Canvas -> Board -> Cell -> UI (Board, GameStatus)
 makeMove canvas board (Cell (r, c) v s) =
   let newBoard = revealCell board (Cell (r, c) v s)
     in do
-        cellLocation <- getCellStartPt (r, c)
-        (newestBoard, gameStatus) <- updateBoardNStatus canvas newBoard (Cell (r, c) v s) cellLocation
+        cellLocation <- getCellStartPt (r, c) -- get cell location
+        (newestBoard, gameStatus) <- updateBoardNStatus canvas newBoard (Cell (r, c) v s) cellLocation -- update the board and game status
         liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-        return (newestBoard, gameStatus)
+        return (newestBoard, gameStatus) -- return the updated board and game status wrapped by UI
 
 -- handles attempt to flag a cell
 manageFlagging :: UI.Canvas -> Board -> Cell -> UI Board
@@ -223,21 +223,21 @@ manageFlagging canvas board (Cell (r, c) v s) =
 handleFlaggingUI :: UI.Canvas -> Cell -> UI.Point -> UI ()
 handleFlaggingUI canvas (Cell (_, _) _ stat) (xPos, yPos) =
   case stat of
-    Hidden  ->
+    Hidden  -> -- mark all flags with an F, if cell was hidden
       canvas # UI.strokeText ("F") (xPos + cellWidth/2, yPos + cellHeight/2)
-    Flagged ->
+    Flagged -> -- if cell was flagged, unflag it (make it hidden)
       do
         canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
         canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
-    _       ->
+    _       -> -- cant flag or unflag a cell that's already revealed
       return ()
 
--- gets the cell number that was clicked on by the Human player
+-- gets the cell number that was clicked on by the Human player (maps click coordinates to cell pos)
 getClickedCellNum :: UI.Point -> (RowNum, ColNum)
 getClickedCellNum (x, y) =
   (floor $ y/(yGap + cellHeight), floor $ x/(xGap + cellWidth) )
 
--- get the cell's top-left coordinates
+-- get the cell's top-left coordinates, just a calculation function
 getCellStartPt :: (RowNum, ColNum) -> UI UI.Point
 getCellStartPt (r, c) =
   let rowNum               = fromIntegral r
@@ -250,15 +250,15 @@ getCellStartPt (r, c) =
 updateBoardNStatus :: UI.Canvas -> Board -> Cell -> UI.Point -> UI (Board, GameStatus)
 updateBoardNStatus canvas board cell cellLocation =
   case (updateGameStatus board cell) of
-    Loss    -> do
+    Loss    -> do -- if it's a loss, show a loss and end the game
                 depictLoss canvas cellLocation
                 newBoard <- endGame board canvas
                 return (newBoard, Loss)
-    Win     -> do
+    Win     -> do -- if it's a win, show the win and end the game
                 depictWin canvas cellLocation cell
                 newBoard <- endGame board canvas
                 return (newBoard, Win)
-    Ongoing -> do
+    Ongoing -> do -- just reveal the cell, and carry on
                 depictOpening canvas cellLocation cell
                 return (board, Ongoing)
 
@@ -290,7 +290,7 @@ depictOpening canvas (xPos, yPos) cell =
 
 -- puts an end to the game (by revealing all other cells)
 endGame :: Board -> UI.Canvas -> UI Board
-endGame board canvas = revealRemainingCells board board canvas
+endGame board canvas = revealRemainingCells board board canvas -- pass board twice as that function needs a board copy as well
 
 -- reveal all cells which aren't Shown yet
 revealRemainingCells :: Board -> Board -> UI.Canvas -> UI Board
@@ -313,12 +313,12 @@ forceRevealCellComplete board (Cell (rowNum, colNum) val stat) canvas =
       yPos          = (row + 1) * yGap + row * cellHeight
       cellLocation  = (xPos, yPos)
     in case val of
-      Mine ->
+      Mine -> --mines shown in pink
         do
           canvas # set' UI.fillStyle (UI.htmlColor "pink")
           canvas # UI.fillRect cellLocation cellWidth cellHeight
           return newBoard
-      (Num i) ->
+      (Num i) -> -- non-mines shown in white with number on top
         do
           canvas # set' UI.fillStyle (UI.htmlColor "white")
           canvas # UI.fillRect cellLocation cellWidth cellHeight
