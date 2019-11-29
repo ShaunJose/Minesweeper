@@ -166,16 +166,15 @@ revealCell board (Cell (row, col) val Hidden)
   | otherwise = replaceElem board (Cell (row, col) val Hidden) (revealSingleCell $ Cell (row, col) val Hidden)
 revealCell board _ = board
 
--- modify board to reveal/uncover a cell regardless of it's status
-forceRevealCell :: Board -> Cell -> Board
-forceRevealCell board (Cell (row, col) val stat) =
-  replaceElem board (Cell (row, col) val stat) (Cell (row, col) val Shown)
-
-
 -- reveal/uncover a cell if you can (if it's hidden)
 revealSingleCell :: Cell -> Cell
 revealSingleCell (Cell (row, col) val Hidden) = (Cell (row, col) val Shown)
 revealSingleCell cell = cell
+
+-- modify board to reveal/uncover a cell regardless of it's status
+forceRevealCell :: Board -> Cell -> Board
+forceRevealCell board (Cell (row, col) val stat) =
+  replaceElem board (Cell (row, col) val stat) (Cell (row, col) val Shown)
 
 -- flag a cell if it's Hidden, unflag if if it's flagged
 flagOrUnflag :: Board -> Cell -> Board
@@ -208,12 +207,6 @@ replaceElem (currElem : t) oldElem newElem
   | oldElem == currElem = newElem : replaceElem t oldElem newElem
   | otherwise           = currElem : replaceElem t oldElem newElem
 
--- initialise game --
-initGame :: Int -> IO ()
-initGame 0 = getChar >>= putChar
-initGame 1 = getChar >>= putChar
-initGame n   = getChar >>= putChar
-
 -- finds the cell in a baord based on rownum and colnum
 findCell :: Board -> (RowNum, ColNum) -> Cell
 findCell [] (row, col) = error $ "findCell: cell not found in board" ++ show row ++ ", " ++  show col
@@ -222,6 +215,7 @@ findCell ((Cell (r, c) val stat): board) (row, col) =
     True  -> Cell (r, c) val stat
     False -> findCell board (row, col)
 
+-- Main method
 main :: IO ()
 main = do
   startGUI defaultConfig uiSetup
@@ -262,7 +256,7 @@ uiSetup window = do
       # set UI.strokeStyle "black"
       # set UI.textAlign UI.Center
 
-    -- define buttons
+    -- define buttons + strings written on them
     human <- UI.button -- play as human button option
       #+ [string "Human player"]
     ai    <- UI.button -- play as AI button option
@@ -274,51 +268,56 @@ uiSetup window = do
     playButton <- UI.button -- play move button for the AI player
       #+ [string "Play move"]
 
-    -- IOReferences
-    coord <- liftIO $ newIORef (0,0)
+    -- IOReferences (Variables)
+    coord <- liftIO $ newIORef (0,0) -- coordinates of mouse on canvas
     g     <- liftIO $ newStdGen -- uses the split method to create newGen
-    board <- liftIO $ newIORef (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)))
+    board <- liftIO $ newIORef (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines))) -- the board
     clickMode <- liftIO $ newIORef RevealMode -- you reveal mines by default
     gameStat <- liftIO $ newIORef Ongoing -- current game status
     player <- liftIO $ newIORef AI -- human or AI playing?
 
+    -- add canvas, and play as human/AI buttons
     getBody window #+
       [row [element canvas], element human, element ai]
 
+    -- if chosen to play as a human..
     on UI.click human $ \_ ->
       do
-        UI.delete human
-        UI.delete ai
-        currBoard <- liftIO $ readIORef board
-        liftIO $ (print $ "Current Board: " ++ show currBoard)
-        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
-        createBoardUI (0.0, 0.0) rows cols canvas
-        getBody window #+ [element reset, element changeMode]
-        liftIO $ writeIORef player Human
+        UI.delete human -- delete human option button
+        UI.delete ai -- delete AI option button
+        currBoard <- liftIO $ readIORef board -- read board
+        canvas # set' UI.fillStyle (UI.htmlColor "darkgray") -- for cells
+        createBoardUI (0.0, 0.0) rows cols canvas -- create the board UI
+        getBody window #+ [element reset, element changeMode] -- add reset, changeMode buttons
+        liftIO $ writeIORef player Human -- set the player type to Human
+    -- if chosen to play as AI
     on UI.click ai $ \_ ->
       do
-        UI.delete human
-        UI.delete ai
-        currBoard <- liftIO $ readIORef board
-        liftIO $ (print $ "Current Board: " ++ show currBoard)
-        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
-        createBoardUI (0.0, 0.0) rows cols canvas
-        getBody window #+ [element reset, element playButton]
-        liftIO $ writeIORef player AI
+        UI.delete human -- delete human option button
+        UI.delete ai -- delete AI option button
+        currBoard <- liftIO $ readIORef board -- read board
+        canvas # set' UI.fillStyle (UI.htmlColor "darkgray") -- for cells
+        createBoardUI (0.0, 0.0) rows cols canvas -- create the board UI
+        getBody window #+ [element reset, element playButton] -- add reset and playButton buttons
+        liftIO $ writeIORef player AI -- set the player type to AI
+
+    -- changeMode for the Human (from reveal to flag or vice versa)
     on UI.click changeMode $ \_ ->
       do
-        mode <- liftIO $ readIORef clickMode
+        mode <- liftIO $ readIORef clickMode -- get current mode
         case mode of
-          RevealMode ->
+          RevealMode -> -- if it's in revealmode, change to flag mode
             do
               liftIO $ writeIORef clickMode FlagMode
-              element changeMode
+              element changeMode  -- change button text appropriately
                 # set UI.text flagMsg
-          FlagMode ->
+          FlagMode -> -- if it's in flagmode, change to reveal mode
             do
               liftIO $ writeIORef clickMode RevealMode
-              element changeMode
+              element changeMode  -- change button text appropriately
                 # set UI.text revealMsg
+
+    -- play move button for the AI
     on UI.click playButton $ \_ ->
       do
         boardVal    <- liftIO $ readIORef board -- read board
@@ -327,37 +326,41 @@ uiSetup window = do
         liftIO $ writeIORef board newBoard -- write new board
         liftIO $ writeIORef gameStat newGameStatus -- write new game status
     on UI.mousemove canvas $ \(x,y) ->
-      do liftIO $ writeIORef coord (x,y)
+      do liftIO $ writeIORef coord (x,y) -- save the current mouse coordinates
+
+    -- respond to clicks on canvas only if Human is playing an unfinished game
     on UI.click canvas $ \_ ->
       do
-        playerType <- liftIO $ readIORef player
-        currGameStatus <- liftIO $ readIORef gameStat
-        case (playerType, currGameStatus) of -- only proceed to play if game is ongoing
+        playerType <- liftIO $ readIORef player -- read player type
+        currGameStatus <- liftIO $ readIORef gameStat -- read the game's status
+        case (playerType, currGameStatus) of -- only proceed to play if game is ongoing and the player is playing
           (Human, Ongoing) ->
             do
               (x, y)     <- liftIO $ readIORef coord
               mode    <- liftIO $ readIORef clickMode
               case mode of
-                RevealMode ->
+                RevealMode -> -- revealing the cell
                   do
                     boardVal    <- liftIO $ readIORef board -- read board
                     gameStatVal <- liftIO $ readIORef gameStat -- read game status
-                    (newBoard, newGameStatus) <- respond boardVal gameStatVal canvas (fromIntegral x, fromIntegral y)
-                    liftIO $ writeIORef board newBoard
-                    liftIO $ writeIORef gameStat newGameStatus
-                FlagMode   ->
+                    (newBoard, newGameStatus) <- revealResponse boardVal gameStatVal canvas (fromIntegral x, fromIntegral y) --reveal func
+                    liftIO $ writeIORef board newBoard -- write newBoard
+                    liftIO $ writeIORef gameStat newGameStatus -- write new game Status
+                FlagMode   -> -- un/flagging the cell
                   do
                     boardVal    <- liftIO $ readIORef board -- read board
-                    newBoard <- flag boardVal canvas (fromIntegral x, fromIntegral y)
-                    liftIO $ writeIORef board newBoard
+                    newBoard <- flagResponse boardVal canvas (fromIntegral x, fromIntegral y) -- flag func
+                    liftIO $ writeIORef board newBoard -- write newBoard
           otherwise       -> return () -- case AI player or game over
+
+    -- button to reset the game
     on UI.click reset $ \_ -> -- reset = delete everything, start over
       do
-        UI.delete canvas
+        UI.delete canvas -- delete everything
         UI.delete reset
         UI.delete changeMode
         UI.delete playButton
-        uiSetup window
+        uiSetup window -- start over from the beginning
 
 -- creates the board UI
 createBoardUI :: UI.Point -> RowNum -> ColNum -> UI.Canvas -> UI ()
@@ -379,42 +382,41 @@ createRowUI (xPos, yPos) cols canvas =
     canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
     createRowUI (xPos + cellWidth + xGap, yPos) (cols - 1) canvas
 
+-- make move for AI (called when play button is pressed)
 playAI :: Board -> GameStatus -> UI.Canvas -> UI (Board, GameStatus)
 playAI board gameStat canvas =
-    case (getNum0Opening board) of
-      Just (Cell (r, c) v s) ->
-        let newBoard             = revealCell board (Cell (r, c) v s)
-          in do
-              cellLocation <- getCellStartPt (r, c)
-              (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
-              liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-              return (newestBoard, gameStatus)
-      Nothing   -> case (findMine board) of
-        Just (Cell (r, c) v s) ->
-          let newBoard             = flagOrUnflag board (Cell (r, c) v s)
-            in do
-                (xPos, yPos)     <- getCellStartPt (r, c)
-                handleFlaggingUI canvas (Cell (r, c) v s) (xPos, yPos)
-                return (newBoard, gameStat)
-        Nothing   ->
-          case (findSafeCell board) of
-            Just (Cell (r, c) v s) ->
-              let newBoard             = revealCell board (Cell (r, c) v s)
-                in do
-                    cellLocation <- getCellStartPt (r, c)
-                    (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
-                    liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                    return (newestBoard, gameStatus)
+    case (getNum0Opening board) of -- first find unopened neighbours of Num 0
+      Just cell -> makeMove canvas board cell
+      Nothing                ->
+       case (findMine board) of -- find an obvious mine if you can
+        Just cell ->
+          do
+            newBoard <- manageFlagging canvas board cell
+            return (newBoard, gameStat)
+        Nothing                 ->
+          case (findSafeCell board) of -- find an obvious safe move if poss
+            Just cell -> makeMove canvas board cell
             Nothing ->
-              case (getHiddenCorner board) of
-                Just (Cell (r, c) v s) ->
-                  let newBoard             = revealCell board (Cell (r, c) v s)
-                    in do
-                        cellLocation <- getCellStartPt (r, c)
-                        (newestBoard, gameStatus) <- updateBoard canvas newBoard (Cell (r, c) v s) cellLocation
-                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                        return (newestBoard, gameStatus)
+              case (getHiddenCorner board) of -- find an unopened corner cell
+                Just cell -> makeMove canvas board cell
                 Nothing        -> return (board, gameStat)
+
+makeMove :: UI.Canvas -> Board -> Cell -> UI (Board, GameStatus)
+makeMove canvas board (Cell (r, c) v s) =
+  let newBoard = revealCell board (Cell (r, c) v s)
+    in do
+        cellLocation <- getCellStartPt (r, c)
+        (newestBoard, gameStatus) <- updateBoardNStatus canvas newBoard (Cell (r, c) v s) cellLocation
+        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+        return (newestBoard, gameStatus)
+
+manageFlagging :: UI.Canvas -> Board -> Cell -> UI Board
+manageFlagging canvas board (Cell (r, c) v s) =
+  let newBoard = flagOrUnflag board (Cell (r, c) v s)
+    in do
+        (xPos, yPos) <- getCellStartPt (r, c)
+        handleFlaggingUI canvas (Cell (r, c) v s) (xPos, yPos)
+        return newBoard
 
 handleFlaggingUI :: UI.Canvas -> Cell -> UI.Point -> UI ()
 handleFlaggingUI canvas (Cell (_, _) _ stat) (xPos, yPos) =
@@ -436,8 +438,8 @@ getCellStartPt (r, c) =
       yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
     in return (xPos, yPos)
 
-updateBoard :: UI.Canvas -> Board -> Cell -> UI.Point -> UI (Board, GameStatus)
-updateBoard canvas board cell cellLocation =
+updateBoardNStatus :: UI.Canvas -> Board -> Cell -> UI.Point -> UI (Board, GameStatus)
+updateBoardNStatus canvas board cell cellLocation =
   case (updateGameStatus board cell) of
     Loss    -> do
                 depictLoss canvas cellLocation
@@ -560,26 +562,20 @@ getAllNum0ShownCells ((Cell (r, c) (Num 0) Shown) : otherCells) =
   (Cell (r, c) (Num 0) Shown) : getAllNum0ShownCells otherCells
 getAllNum0ShownCells (cell: otherCells) = getAllNum0ShownCells otherCells
 
--- responds to click on the canvas
-respond :: Board -> GameStatus -> UI.Canvas -> UI.Point -> UI (Board, GameStatus)
-respond board gameStat canvas coord =
+-- responds to click on the canvas by the Human, when in RevealMode
+revealResponse :: Board -> GameStatus -> UI.Canvas -> UI.Point -> UI (Board, GameStatus)
+revealResponse board gameStat canvas coord =
     let (rowIndex, colIndex) = getClickedCellNum coord
         cellClicked          = findCell board (rowIndex, colIndex)
-        newBoard             = revealCell board cellClicked
-      in do
-          cellLocation <- getCellStartPt (rowIndex, colIndex)
-          (newestBoard, gameStatus) <- updateBoard canvas newBoard cellClicked cellLocation
-          liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
-          return (newestBoard, gameStatus)
+      in makeMove canvas board cellClicked
 
-flag :: Board -> UI.Canvas -> UI.Point -> UI Board
-flag board canvas coord =
+-- responds to click on the canvas by the Human, when in FlagMode
+flagResponse :: Board -> UI.Canvas -> UI.Point -> UI Board
+flagResponse board canvas coord =
     let (rowIndex, colIndex) = getClickedCellNum coord
         cellClicked          = findCell board (rowIndex, colIndex)
-        newBoard             = flagOrUnflag board cellClicked
       in do
-          (xPos, yPos) <- getCellStartPt (rowIndex, colIndex)
-          handleFlaggingUI canvas cellClicked (xPos, yPos)
+          newBoard <- manageFlagging canvas board cellClicked
           return newBoard
 
 -- puts an end to the game (by revealing all other cells)
