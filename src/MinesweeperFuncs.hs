@@ -280,6 +280,15 @@ getNum0Opening board =
       []        -> Nothing
       (cell: _) -> Just cell
 
+-- returns the first hidden cell it finds on the board
+findHiddenCell :: Board -> Maybe Cell
+findHiddenCell [] = Nothing
+findHiddenCell board =
+  let allHiddenCells = filter isHidden board -- get all hidden cells
+    in case allHiddenCells of -- if it's empty, return nothing
+      []        -> Nothing
+      (cell: _) -> Just cell
+
 -- AI Logic helpers --
 -- returns all cells from a list of cells, that are shown
 getAllShownCells :: [Cell] -> [Cell]

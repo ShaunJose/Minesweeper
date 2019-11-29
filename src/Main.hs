@@ -198,7 +198,11 @@ playAI board gameStat canvas =
             Nothing   ->
               case (getHiddenCorner board) of -- if not, find an unopened corner cell
                 Just cell -> makeMove canvas board cell
-                Nothing   -> return (board, gameStat) -- if all above fails
+                Nothing   ->  --if all else fails, just choose a random cell
+                  case (findHiddenCell board) of
+                    Just cell -> makeMove canvas board cell
+                    Nothing   -> return (board, gameStat) -- shouldn't really reach this point, ever
+
 
 -- handles attempt to reveal a cell
 makeMove :: UI.Canvas -> Board -> Cell -> UI (Board, GameStatus)
