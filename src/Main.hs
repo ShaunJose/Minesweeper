@@ -392,27 +392,10 @@ playAI board gameStat canvas =
       Nothing   -> case (findMine board) of
         Just (Cell (r, c) v s) ->
           let newBoard             = flagOrUnflag board (Cell (r, c) v s)
-              rowNum               = fromIntegral r
-              colNum               = fromIntegral c
-              xPos                 = (colNum + 1) * xGap + colNum * cellWidth
-              yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-              cellLocation         = (xPos, yPos)
-            in case (Cell (r, c) v s) of
-              (Cell (row, col) v Hidden) ->
-                do
-                  canvas # UI.strokeText ("F") (xPos + cellWidth/2, yPos + cellHeight/2)
-                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                  return (newBoard, gameStat)
-              (Cell (row, col) v Flagged) ->
-                do
-                  canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
-                  canvas # UI.fillRect cellLocation cellWidth cellHeight
-                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                  return (newBoard, gameStat)
-              _                             ->
-                do
-                  liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-                  return (newBoard, gameStat)
+            in do
+                (xPos, yPos)     <- getCellStartPt (r, c)
+                handleFlaggingUI canvas (Cell (r, c) v s) (xPos, yPos)
+                return (newBoard, gameStat)
         Nothing   ->
           case (findSafeCell board) of
             Just (Cell (r, c) v s) ->
@@ -432,6 +415,18 @@ playAI board gameStat canvas =
                         liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
                         return (newestBoard, gameStatus)
                 Nothing        -> return (board, gameStat)
+
+handleFlaggingUI :: UI.Canvas -> Cell -> UI.Point -> UI ()
+handleFlaggingUI canvas (Cell (_, _) _ stat) (xPos, yPos) =
+  case stat of
+    Hidden  ->
+      canvas # UI.strokeText ("F") (xPos + cellWidth/2, yPos + cellHeight/2)
+    Flagged ->
+      do
+        canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
+        canvas # UI.fillRect (xPos, yPos) cellWidth cellHeight
+    _       ->
+      return ()
 
 getCellStartPt :: (RowNum, ColNum) -> UI UI.Point
 getCellStartPt (r, c) =
@@ -582,27 +577,10 @@ flag board canvas coord =
     let (rowIndex, colIndex) = getClickedCellNum coord
         cellClicked          = findCell board (rowIndex, colIndex)
         newBoard             = flagOrUnflag board cellClicked
-        rowNum               = fromIntegral rowIndex
-        colNum               = fromIntegral colIndex
-        xPos                 = (colNum + 1) * xGap + colNum * cellWidth
-        yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-        cellLocation         = (xPos, yPos)
-        in case cellClicked of
-          (Cell (row, col) val Hidden) ->
-            do
-              canvas # UI.strokeText ("F") (xPos + cellWidth/2, yPos + cellHeight/2)
-              liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
-              return newBoard
-          (Cell (row, col) val Flagged) ->
-            do
-              canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
-              canvas # UI.fillRect cellLocation cellWidth cellHeight
-              liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
-              return newBoard
-          _                             ->
-            do
-              liftIO $ print $ show cellClicked ++ " --- " ++ show newBoard
-              return newBoard
+      in do
+          (xPos, yPos) <- getCellStartPt (rowIndex, colIndex)
+          handleFlaggingUI canvas cellClicked (xPos, yPos)
+          return newBoard
 
 -- puts an end to the game (by revealing all other cells)
 endGame :: Board -> UI.Canvas -> UI Board
