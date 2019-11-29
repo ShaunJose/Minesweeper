@@ -55,6 +55,21 @@ gridList (Cell (row, col) _ _) =
    (row, col-1), {- (row, col), -} (row, col+1),
    (row+1, col-1), (row+1, col), (row+1, col+1)]
 
+-- checks if a cell with (rownum, colnum) must exist in the board
+inRange :: (RowNum, ColNum) -> Bool
+inRange (r, c)
+  | r >= 0 && c >= 0 && r < rows && c < cols = True
+  | otherwise                                = False
+
+-- returns a list of locations of neighbouring-cells (exclusive of centre cell's location) IF THEY ARE VALID
+validGridList :: Cell -> [(RowNum, ColNum)]
+validGridList cell = filter inRange (gridList cell)
+
+getNeighbourCells :: Board -> Cell -> [Cell]
+getNeighbourCells board cell =
+  let validTuples = validGridList cell
+    in map (findCell board) validTuples
+
 -- increment the Num value of a cell
 incrCellVal :: Cell -> Cell
 incrCellVal (Cell (r, c) (Num i) status) = Cell (r, c) (Num (i+1)) status
@@ -123,6 +138,11 @@ fillBoard boardCopy (cell:board)
 isMine :: Cell -> Bool
 isMine (Cell (_, _) Mine _)    = True
 isMine _                       = False
+
+-- True if cell is hidden, false otherwise
+isHidden :: Cell -> Bool
+isHidden (Cell (_, _) _ Hidden)    = True
+isHidden _                         = False
 
 -- modify board to reveal/uncover a cell if you can (if it's hidden)
 revealCell :: Board -> Cell -> Board
@@ -358,46 +378,46 @@ playAI :: IORef Board -> IORef GameStatus -> UI.Canvas -> UI ()
 playAI boardRef gameStatRef canvas =
   do
     board <- liftIO $ readIORef boardRef
-    case (getHiddenCorner board) of
-      Just (Cell (r, c) v s) ->
-        let newBoard             = revealCell board (Cell (r, c) v s)
-            rowNum               = fromIntegral r
-            colNum               = fromIntegral c
-            xPos                 = (colNum + 1) * xGap + colNum * cellWidth
-            yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
-            cellLocation         = (xPos, yPos)
-          in case (updateGameStatus newBoard (Cell (r, c) v s)) of
-            Loss    -> do
-                        canvas # set' UI.fillStyle (UI.htmlColor "red")
-                        canvas # UI.fillRect cellLocation cellWidth cellHeight
-                        canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
-                        liftIO $ writeIORef boardRef newBoard
-                        endGame boardRef canvas
-                        liftIO $ writeIORef gameStatRef Loss
-                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-            Win     -> do
-                        canvas # set' UI.fillStyle (UI.htmlColor "white")
-                        canvas # UI.fillRect cellLocation cellWidth cellHeight
-                        case ((Cell (r, c) v s)) of
-                          Cell (_, _) (Num i) Hidden -> canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
-                          otherwise                   -> return ()
-                        canvas # UI.strokeText ("You win!") (canvasWidth/2, canvasHeight - resultSpace/2)
-                        liftIO $ writeIORef boardRef newBoard
-                        endGame boardRef canvas
-                        liftIO $ writeIORef gameStatRef Win
-                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-            Ongoing -> do
-                        case ((Cell (r, c) v s)) of
-                          Cell (_, _) (Num i) Hidden ->
-                            do
-                              canvas # set' UI.fillStyle (UI.htmlColor "white")
-                              canvas # UI.fillRect cellLocation cellWidth cellHeight
-                              canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
-                          otherwise                  -> return ()
-                        liftIO $ writeIORef boardRef newBoard
-                        liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
-
-      Nothing -> return ()
+    case (getNum0Opening board) of
+      Just cell -> liftIO $ print $ show cell
+      Nothing   -> case (getHiddenCorner board) of
+        Just (Cell (r, c) v s) ->
+          let newBoard             = revealCell board (Cell (r, c) v s)
+              rowNum               = fromIntegral r
+              colNum               = fromIntegral c
+              xPos                 = (colNum + 1) * xGap + colNum * cellWidth
+              yPos                 = (rowNum + 1) * yGap + rowNum * cellHeight
+              cellLocation         = (xPos, yPos)
+            in case (updateGameStatus newBoard (Cell (r, c) v s)) of
+              Loss    -> do
+                          canvas # set' UI.fillStyle (UI.htmlColor "red")
+                          canvas # UI.fillRect cellLocation cellWidth cellHeight
+                          canvas # UI.strokeText ("You lose.") (canvasWidth/2, canvasHeight - resultSpace/2)
+                          liftIO $ writeIORef boardRef newBoard
+                          endGame boardRef canvas
+                          liftIO $ writeIORef gameStatRef Loss
+                          liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+              Win     -> do
+                          canvas # set' UI.fillStyle (UI.htmlColor "white")
+                          canvas # UI.fillRect cellLocation cellWidth cellHeight
+                          case ((Cell (r, c) v s)) of
+                            Cell (_, _) (Num i) Hidden -> canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+                            otherwise                   -> return ()
+                          canvas # UI.strokeText ("You win!") (canvasWidth/2, canvasHeight - resultSpace/2)
+                          liftIO $ writeIORef boardRef newBoard
+                          endGame boardRef canvas
+                          liftIO $ writeIORef gameStatRef Win
+                          liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
+              Ongoing -> do
+                          case ((Cell (r, c) v s)) of
+                            Cell (_, _) (Num i) Hidden ->
+                              do
+                                canvas # set' UI.fillStyle (UI.htmlColor "white")
+                                canvas # UI.fillRect cellLocation cellWidth cellHeight
+                                canvas # UI.strokeText (show i) (xPos + cellWidth/2, yPos + cellHeight/2)
+                            otherwise                  -> return ()
+                          liftIO $ writeIORef boardRef newBoard
+                          liftIO $ print $ show (Cell (r, c) v s) ++ " --- " ++ show newBoard
 
 getHiddenCorner :: Board -> Maybe Cell
 getHiddenCorner [] = Nothing
@@ -411,6 +431,29 @@ getHiddenCorner board =
         _ -> case findCell board (rows-1, cols-1) of
           Cell (r, c) v Hidden -> Just (Cell (r, c) v Hidden)
           otherwise            -> Nothing
+
+-- return a HIDDEN neighbour of a num 0 cell, if it exists
+getNum0Opening :: Board -> Maybe Cell
+getNum0Opening [] = Nothing
+getNum0Opening board =
+  let shownNum0List  = getAllNum0ShownCells
+      neighbourCells = concat $ map (getNeighbourCells board) (getAllNum0ShownCells board)
+      hiddenCells    = filter isHidden neighbourCells
+    in case hiddenCells of
+      []        -> Nothing
+      (cell: _) -> Just cell
+
+getAllNum0ShownCells :: Board -> [Cell]
+getAllNum0ShownCells [] = []
+getAllNum0ShownCells ((Cell (r, c) (Num 0) Shown) : otherCells) =
+  (Cell (r, c) (Num 0) Shown) : getAllNum0ShownCells otherCells
+getAllNum0ShownCells (cell: otherCells) = getAllNum0ShownCells otherCells
+
+-- return first Num 0 cell that's revealed, if it exists
+getNum0ShownCell :: Board -> Maybe Cell
+getNum0ShownCell [] = Nothing
+getNum0ShownCell ((Cell (r, c) (Num 0) Shown) : _) = Just (Cell (r, c) (Num 0) Shown)
+getNum0ShownCell (cell: otherCells) = getNum0ShownCell otherCells
 
 -- responds to click on the canvas
 respond :: IORef Board -> IORef GameStatus -> UI.Canvas -> UI.Point -> UI ()
