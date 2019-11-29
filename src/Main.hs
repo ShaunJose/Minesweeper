@@ -34,6 +34,9 @@ data GameStatus = Loss | Win | Ongoing
 data ClickMode = RevealMode | FlagMode
               deriving (Eq)
 
+-- human or AI?
+data PlayerType = Human | AI
+
 -- FUNCS --
 
 -- applies function to neighbouring cells of cell provided, in the board
@@ -259,12 +262,15 @@ uiSetup window = do
       #+ [string "Reset game"]
     changeMode <- UI.button
       #+ [string revealMsg]
+    playButton <- UI.button
+      #+ [string "Play move"]
 
     coord <- liftIO $ newIORef (0,0)
     g     <- liftIO $ newStdGen -- uses the split method to create newGen
     board <- liftIO $ newIORef (fillBoard (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)) (createBoard rows cols 0 (fst $ chooseMines g rows cols [] mines)))
     clickMode <- liftIO $ newIORef RevealMode -- you reveal mines by default
     gameStat <- liftIO $ newIORef Ongoing -- current game status
+    player <- liftIO $ newIORef Human -- human or AI playing?
 
     getBody window #+
       [row [element canvas], element human, element ai]
@@ -286,7 +292,8 @@ uiSetup window = do
         liftIO $ (print $ "Current Board: " ++ show currBoard)
         canvas # set' UI.fillStyle (UI.htmlColor "darkgray")
         createBoardUI (0.0, 0.0) rows cols canvas
-        getBody window #+ [element reset]
+        getBody window #+ [element reset, element playButton]
+        liftIO $ writeIORef player AI
     on UI.click changeMode $ \_ ->
       do
         mode <- liftIO $ readIORef clickMode
@@ -305,21 +312,30 @@ uiSetup window = do
       do liftIO $ writeIORef coord (x,y)
     on UI.click canvas $ \_ ->
       do
+        playerType <- liftIO $ readIORef player
         currGameStatus <- liftIO $ readIORef gameStat
-        case currGameStatus of
+        case currGameStatus of -- only proceed to play if game is ongoing
           Ongoing ->
             do
-              (x, y)  <- liftIO $ readIORef coord
-              mode    <- liftIO $ readIORef clickMode
-              case mode of
-                RevealMode -> respond board gameStat canvas (fromIntegral x, fromIntegral y)
-                FlagMode   -> flag board canvas (fromIntegral x, fromIntegral y)
-          _       -> return ()
-    on UI.click reset $ \_ ->
+              (x, y)     <- liftIO $ readIORef coord
+              playerType <- liftIO $ readIORef player
+              case playerType of
+                Human ->
+                  do
+                    mode    <- liftIO $ readIORef clickMode
+                    case mode of
+                      RevealMode -> respond board gameStat canvas (fromIntegral x, fromIntegral y)
+                      FlagMode   -> flag board canvas (fromIntegral x, fromIntegral y)
+                AI      ->
+                  do
+                    return ()
+          _        -> return () -- case game over
+    on UI.click reset $ \_ -> -- reset = delete everything, start over
       do
         UI.delete canvas
         UI.delete reset
         UI.delete changeMode
+        UI.delete playButton
         uiSetup window
 
 -- creates the board UI
